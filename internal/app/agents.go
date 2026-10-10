@@ -84,49 +84,70 @@ func (a *App) nameAgents(
 			continue
 		}
 
-		session, ok := pane.AgentSession.IDFor(claude.Agent)
-		if !ok && (pane.Agent != claude.Agent || pane.TerminalTitle == "") {
-			continue
-		}
-
-		// Judged before the model is asked: a name the user gave is claimed
-		// here, on the first poll that sees it, and never costs a request.
-		if !ok {
-			// No session to key the name by: the pane keys it instead, which a
-			// new agent in the same pane inherits until its session is reported.
-			session = "pane:" + agent.PaneID
-		}
-
-		taken := takenBy(worn, agent.PaneID)
-		pass.Agent(ctx, agent.PaneID, agent.Name, resolver.Decision{
-			Name:   namer.Unique(a.agents.Remembered(session), taken),
-			Reason: "named by " + a.agents.Backend(),
-		})
-
-		if pass.AgentLocked(agent.PaneID) {
-			continue
-		}
-
-		poll.Fill(ctx, pane)
-
-		title := pane.AgentAITitle
-		if !ok {
-			// Herdr's integration never reported this session, so there is no
-			// transcript to read: name it once from the title Claude Code shows
-			// in its terminal, which it derived from the user's own prompts.
-			title = pane.TerminalTitle
-		}
-
-		// Queues a new name when one is due; a later poll applies it.
-		a.agents.Name(session, pane.AgentTurns, namer.Request{
-			Agent:   pane.Agent,
-			Dir:     agentDir(pane),
-			Title:   title,
-			Prompts: pane.AgentPrompts,
-			Current: agent.Name,
-			Taken:   taken,
-		})
+		a.nameAgent(ctx, pass, poll, agent, pane, takenBy(worn, agent.PaneID))
 	}
+}
+
+// nameAgent gives one agent its remembered name and queues a new one when due.
+func (a *App) nameAgent(
+	ctx context.Context,
+	pass *labels.Pass,
+	poll *reads.Poll,
+	agent herdr.AgentInfo,
+	pane *state.PaneState,
+	taken []string,
+) {
+	key, fromTranscript, ok := agentKey(agent, pane)
+	if !ok {
+		return
+	}
+
+	// Judged before the model is asked: a name the user gave is claimed here,
+	// on the first poll that sees it, and never costs a request.
+	pass.Agent(ctx, agent.PaneID, agent.Name, resolver.Decision{
+		Name:   namer.Unique(a.agents.Remembered(key), taken),
+		Reason: "named by " + a.agents.Backend(),
+	})
+
+	if pass.AgentLocked(agent.PaneID) {
+		return
+	}
+
+	poll.Fill(ctx, pane)
+
+	title := pane.AgentAITitle
+	if !fromTranscript {
+		// Herdr's integration never reported this session, so there is no
+		// transcript to read: name it once from the title Claude Code shows in
+		// its terminal, which it derived from the user's own prompts.
+		title = pane.TerminalTitle
+	}
+
+	// Queues a new name when one is due; a later poll applies it.
+	a.agents.Name(key, pane.AgentTurns, namer.Request{
+		Agent:   pane.Agent,
+		Dir:     agentDir(pane),
+		Title:   title,
+		Prompts: pane.AgentPrompts,
+		Current: agent.Name,
+		Taken:   taken,
+	})
+}
+
+// agentKey is what an agent's name is remembered by: its Claude session, or,
+// when Herdr's integration never reported one, its pane — which a new agent in
+// the same pane inherits until its own session is reported. fromTranscript
+// says whether a transcript can be read; ok is false for an agent not named.
+func agentKey(agent herdr.AgentInfo, pane *state.PaneState) (key string, fromTranscript, ok bool) {
+	if session, found := pane.AgentSession.IDFor(claude.Agent); found {
+		return session, true, true
+	}
+
+	if pane.Agent != claude.Agent || pane.TerminalTitle == "" {
+		return "", false, false
+	}
+
+	return "pane:" + agent.PaneID, false, true
 }
 
 // takenBy is every name other agents wear, which this one cannot have.
