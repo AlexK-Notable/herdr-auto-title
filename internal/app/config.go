@@ -12,6 +12,7 @@ import (
 
 	"github.com/joho/godotenv"
 
+	"github.com/kryptamine/herdr-auto-title/internal/namer"
 	"github.com/kryptamine/herdr-auto-title/internal/resolver"
 )
 
@@ -34,6 +35,23 @@ const (
 	EnvWorkspaceMaxLength = "HERDR_AUTO_TITLE_WORKSPACE_MAX_LENGTH"
 
 	EnvClaudeDirs = "HERDR_AUTO_TITLE_CLAUDE_DIRS"
+
+	// EnvAgents turns agent naming on or off: each coding agent is named by a
+	// small model after what the user is asking it to do. The rest configure it.
+	EnvAgents        = "HERDR_AUTO_TITLE_AGENTS"
+	EnvNamer         = "HERDR_AUTO_TITLE_NAMER"
+	EnvNamerModel    = "HERDR_AUTO_TITLE_NAMER_MODEL"
+	EnvNamerInterval = "HERDR_AUTO_TITLE_NAMER_INTERVAL_S"
+	EnvClaudeBin     = "HERDR_AUTO_TITLE_CLAUDE_BIN"
+	EnvAPIKeyCommand = "HERDR_AUTO_TITLE_API_KEY_CMD" //nolint:gosec // a variable name, not a credential
+	EnvAnthropicKey  = "ANTHROPIC_API_KEY"
+)
+
+// Namer backends: the claude CLI, billed to the subscription it is logged in
+// with, or the Anthropic API, billed to a key.
+const (
+	NamerCLI = "cli"
+	NamerAPI = "api"
 )
 
 // EnvClaudeConfigDir is Claude Code's own variable, not one of ours: it names
@@ -96,6 +114,21 @@ type Config struct {
 	ClaudeDirs []string
 	// Home is the user's home directory, or "" when there is none.
 	Home string
+
+	// NameAgents names each Claude Code agent after its task, with a model.
+	NameAgents bool
+	// Namer is how the model is reached: NamerCLI or NamerAPI. The API key is
+	// deliberately not held here, so no dump of the configuration can print it:
+	// it is read from ANTHROPIC_API_KEY or APIKeyCommand when the backend is
+	// built.
+	Namer         string
+	NamerModel    string
+	NamerInterval time.Duration
+	ClaudeBin     string
+	// APIKeyCommand runs, without a shell, to print the API key.
+	APIKeyCommand []string
+	// AgentNamesPath is where the names chosen are remembered across restarts.
+	AgentNamesPath string
 }
 
 // LoadConfig reads configuration from the configuration file and the
@@ -127,6 +160,12 @@ func LoadConfig() (Config, []string) {
 		ReportWorkspaces: true,
 		ClaudeDirs:       homes,
 		Home:             userHome(),
+		NameAgents:       true,
+		Namer:            NamerCLI,
+		NamerModel:       namer.DefaultModel,
+		NamerInterval:    namer.DefaultInterval,
+		ClaudeBin:        "claude",
+		AgentNamesPath:   ownPath(agentNamesFile),
 		// ShowAgentName stays false: most sessions run one agent, whose name
 		// would repeat on every tab.
 	}
@@ -156,7 +195,47 @@ func LoadConfig() (Config, []string) {
 		cfg.ManualPath = raw
 	}
 
+	loadNamerConfig(&cfg, &warnings)
+
 	return cfg, warnings
+}
+
+// loadNamerConfig reads the agent-naming settings over cfg's defaults.
+func loadNamerConfig(cfg *Config, warnings *[]string) {
+	cfg.NameAgents = fromEnv(warnings, EnvAgents, cfg.NameAgents, boolean)
+	cfg.Namer = fromEnv(warnings, EnvNamer, cfg.Namer, namerKind)
+	cfg.NamerInterval = fromEnv(warnings, EnvNamerInterval, cfg.NamerInterval, seconds)
+
+	if raw := strings.TrimSpace(os.Getenv(EnvNamerModel)); raw != "" {
+		cfg.NamerModel = raw
+	}
+
+	if raw := strings.TrimSpace(os.Getenv(EnvClaudeBin)); raw != "" {
+		cfg.ClaudeBin = raw
+	}
+
+	cfg.APIKeyCommand = strings.Fields(os.Getenv(EnvAPIKeyCommand))
+}
+
+var errNotNamer = errors.New("is neither " + NamerCLI + " nor " + NamerAPI)
+
+func namerKind(raw string) (string, error) {
+	switch raw = strings.ToLower(strings.TrimSpace(raw)); raw {
+	case NamerCLI, NamerAPI:
+		return raw, nil
+	default:
+		return "", errNotNamer
+	}
+}
+
+// seconds reads a positive number of seconds.
+func seconds(raw string) (time.Duration, error) {
+	n, err := count(raw)
+	if err != nil {
+		return 0, err
+	}
+
+	return time.Duration(n) * time.Second, nil
 }
 
 // readConfigFile puts the file's settings into the environment, which is how a

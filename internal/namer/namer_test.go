@@ -1,0 +1,286 @@
+package namer
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"testing"
+
+	"github.com/anthropics/anthropic-sdk-go/option"
+)
+
+var herdrName = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,31}$`)
+
+func TestSlugMakesAnyAnswerANameHerdrAccepts(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]string{
+		"fix-search-ranking":      "fix-search-ranking",
+		"Fix Search Ranking":      "fix-search-ranking",
+		"  herdr: agent naming! ": "herdr-agent-naming",
+		"42-answers":              "answers",
+		"--":                      "",
+		"ünïcode wörds":           "n-code-w-rds",
+		"a-very-long-name-that-keeps-going-past-the-limit": "a-very-long-name-that-keeps",
+	}
+
+	for raw, want := range cases {
+		got := Slug(raw)
+		if got != want {
+			t.Errorf("Slug(%q) = %q, want %q", raw, got, want)
+		}
+
+		if got != "" && !herdrName.MatchString(got) {
+			t.Errorf("Slug(%q) = %q, which Herdr refuses", raw, got)
+		}
+	}
+}
+
+func TestUniqueSuffixesOnlyAClashingName(t *testing.T) {
+	t.Parallel()
+
+	if got := Unique("fix-search", []string{"other"}); got != "fix-search" {
+		t.Errorf("no clash: got %q", got)
+	}
+
+	if got := Unique("fix-search", []string{"fix-search", "fix-search-2"}); got != "fix-search-3" {
+		t.Errorf("clash: got %q, want fix-search-3", got)
+	}
+
+	long := strings.Repeat("a", MaxName)
+	if got := Unique(long, []string{long}); len(got) > MaxName || !herdrName.MatchString(got) {
+		t.Errorf("long clash: got %q", got)
+	}
+}
+
+func TestThePayloadCarriesTheFactsAndNoInstructionsFromThem(t *testing.T) {
+	t.Parallel()
+
+	got := payload(Request{
+		Agent: "claude", Dir: "/home/u/repo", Title: "old title",
+		Prompts: []string{"first", "second"}, Current: "fix-search", Taken: []string{"a", "b"},
+	})
+
+	for _, want := range []string{"Agent: claude", "/home/u/repo", "old title", "Current name", "fix-search", "Taken names (do not use): a, b", "1. first", "2. second"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("payload lacks %q:\n%s", want, got)
+		}
+	}
+}
+
+// fakeClaude writes a script standing in for `claude` that records its argv,
+// stdin and environment, and answers with reply.
+func fakeClaude(t *testing.T, reply string, exit int) (bin, dir string) {
+	t.Helper()
+
+	dir = t.TempDir()
+	bin = filepath.Join(dir, "claude")
+	script := "#!/bin/sh\n" +
+		"printf '%s\\n' \"$@\" > \"" + dir + "/argv\"\n" +
+		"cat > \"" + dir + "/stdin\"\n" +
+		"env > \"" + dir + "/env\"\n" +
+		"cat <<'JSON'\n" + reply + "\nJSON\n" +
+		"exit " + string(rune('0'+exit)) + "\n"
+
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	return bin, dir
+}
+
+func read(t *testing.T, path string) string {
+	t.Helper()
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return string(raw)
+}
+
+func TestTheCLIBackendIsSealedOffFromTheSession(t *testing.T) {
+	t.Setenv("HERDR_ENV", "1")
+	t.Setenv("HERDR_PANE_ID", "w1:p1")
+	t.Setenv("ANTHROPIC_API_KEY", "sk-test")
+	t.Setenv("CLAUDECODE", "1")
+	t.Setenv("KEEP_ME", "yes")
+
+	bin, dir := fakeClaude(
+		t,
+		`{"is_error":false,"result":"","structured_output":{"name":"Fix Search"}}`,
+		0,
+	)
+	cli := CLI{Binary: bin, Model: DefaultModel}
+
+	name, err := cli.Name(
+		context.Background(),
+		Request{Agent: "claude", Prompts: []string{"secret prompt text"}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if name != "Fix Search" {
+		t.Errorf("name = %q", name)
+	}
+
+	argv := read(t, filepath.Join(dir, "argv"))
+	for _, want := range []string{"-p", "--safe-mode", "--no-session-persistence", "--json-schema", DefaultModel} {
+		if !strings.Contains(argv, want+"\n") {
+			t.Errorf("argv lacks %q:\n%s", want, argv)
+		}
+	}
+
+	if strings.Contains(argv, "secret prompt text") {
+		t.Error("the payload reached the argument vector")
+	}
+
+	if !strings.Contains(read(t, filepath.Join(dir, "stdin")), "secret prompt text") {
+		t.Error("the payload did not reach stdin")
+	}
+
+	env := read(t, filepath.Join(dir, "env"))
+	for _, gone := range []string{"HERDR_ENV=", "HERDR_PANE_ID=", "ANTHROPIC_API_KEY=", "CLAUDECODE="} {
+		if strings.Contains(env, gone) {
+			t.Errorf("%s leaked into the CLI's environment", gone)
+		}
+	}
+
+	if !strings.Contains(env, "KEEP_ME=yes") {
+		t.Error("an unrelated variable was dropped")
+	}
+}
+
+func TestTheCLIBackendReportsAnErrorResult(t *testing.T) {
+	t.Parallel()
+
+	bin, _ := fakeClaude(t, `{"is_error":true,"result":"Not logged in · Please run /login"}`, 1)
+
+	_, err := CLI{Binary: bin, Model: DefaultModel}.Name(context.Background(), Request{})
+	if err == nil || !strings.Contains(err.Error(), "Not logged in") {
+		t.Errorf("err = %v, want the CLI's own message", err)
+	}
+}
+
+func TestTheAPIBackendAsksHaikuForStructuredOutputWithoutThinking(t *testing.T) {
+	t.Parallel()
+
+	var body map[string]any
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &body)
+
+		if r.Header.Get("X-Api-Key") != "sk-test" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(
+			w,
+			`{"id":"msg_1","type":"message","role":"assistant","model":"claude-haiku-5-5",
+			"content":[{"type":"text","text":"{\"name\":\"herdr-agent-naming\"}"}],
+			"stop_reason":"end_turn","usage":{"input_tokens":10,"output_tokens":5}}`,
+		)
+	}))
+	defer server.Close()
+
+	api := NewAPI("sk-test", DefaultModel, option.WithBaseURL(server.URL), option.WithMaxRetries(0))
+
+	name, err := api.Name(context.Background(), Request{Agent: "claude", Prompts: []string{"x"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if name != "herdr-agent-naming" {
+		t.Errorf("name = %q", name)
+	}
+
+	if body["model"] != DefaultModel {
+		t.Errorf("model = %v", body["model"])
+	}
+
+	if thinking, _ := body["thinking"].(map[string]any); thinking["type"] != "disabled" {
+		t.Errorf("thinking = %v, want disabled", body["thinking"])
+	}
+
+	cfg, _ := body["output_config"].(map[string]any)
+	if cfg["effort"] != "low" {
+		t.Errorf("effort = %v, want low", cfg["effort"])
+	}
+
+	if format, _ := cfg["format"].(map[string]any); format["type"] != "json_schema" {
+		t.Errorf("format = %v, want json_schema", cfg["format"])
+	}
+
+	for _, banned := range []string{"temperature", "top_p", "top_k"} {
+		if _, sent := body[banned]; sent {
+			t.Errorf("%s was sent; Haiku 5.5 refuses non-default sampling", banned)
+		}
+	}
+}
+
+func TestTheAPIBackendReportsAStatusWithoutTheKey(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = io.WriteString(
+			w,
+			`{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}`,
+		)
+	}))
+	defer server.Close()
+
+	_, err := NewAPI(
+		"sk-secret-value",
+		DefaultModel,
+		option.WithBaseURL(server.URL),
+		option.WithMaxRetries(0),
+	).
+		Name(context.Background(), Request{})
+	if err == nil || !strings.Contains(err.Error(), "401") {
+		t.Fatalf("err = %v, want a 401", err)
+	}
+
+	if strings.Contains(err.Error(), "sk-secret-value") {
+		t.Error("the key leaked into the error")
+	}
+}
+
+func TestTheKeyCommandPrintsTheKeyAndNothingElseIsAccepted(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	good := filepath.Join(dir, "good")
+	bad := filepath.Join(dir, "bad")
+
+	if err := os.WriteFile(good, []byte("#!/bin/sh\necho '  sk-ant-123  '\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.WriteFile(bad, []byte("#!/bin/sh\necho 'two words'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	key, err := KeyFromCommand(context.Background(), []string{good})
+	if err != nil || key != "sk-ant-123" {
+		t.Errorf("key = %q, err = %v", key, err)
+	}
+
+	if _, err := KeyFromCommand(context.Background(), []string{bad}); err == nil {
+		t.Error("a key with a space was accepted")
+	} else if strings.Contains(err.Error(), "two words") {
+		t.Error("the command's output reached the error")
+	}
+}

@@ -15,6 +15,7 @@ import (
 	"github.com/kryptamine/herdr-auto-title/internal/app"
 	"github.com/kryptamine/herdr-auto-title/internal/herdr"
 	"github.com/kryptamine/herdr-auto-title/internal/instance"
+	"github.com/kryptamine/herdr-auto-title/internal/namer"
 )
 
 func main() {
@@ -88,9 +89,47 @@ func run() error {
 	}
 
 	titles, panes, topics := app.Resolvers(cfg)
-	app.New(cfg, log, titles, panes, topics, claim).Run(ctx, client)
+	auto := app.New(cfg, log, titles, panes, topics, claim)
+
+	if service := agentNamer(ctx, cfg, log); service != nil {
+		go service.Run(ctx)
+
+		auto.WithAgentNamer(service)
+	}
+
+	auto.Run(ctx, client)
 
 	return nil
+}
+
+// agentNamer builds the service that names agents, or nil when that is off or
+// cannot work. A namer that cannot start costs agent names, never tab titles.
+func agentNamer(ctx context.Context, cfg app.Config, log *slog.Logger) *namer.Service {
+	if !cfg.NameAgents {
+		return nil
+	}
+
+	if !cfg.ReadTranscripts {
+		log.Warn("agents are not named: naming them reads their transcripts, which " +
+			app.EnvTranscript + " turned off")
+
+		return nil
+	}
+
+	backend, err := app.NamerBackend(ctx, cfg)
+	if err != nil {
+		log.Warn("agents are not named", "error", err)
+		return nil
+	}
+
+	log.Info("naming agents", "backend", backend.String(), "interval", cfg.NamerInterval)
+
+	return namer.New(namer.Options{
+		Backend:  backend,
+		Interval: cfg.NamerInterval,
+		Path:     cfg.AgentNamesPath,
+		Log:      log,
+	})
 }
 
 // restart starts a fresh instance in this one's session and says how that went,

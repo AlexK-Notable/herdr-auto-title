@@ -41,8 +41,9 @@ func newClaims(l *Labels, kind kind) *claims {
 // claimsFile is the on-disk form: locks outlive the process because Herdr can
 // restart a plugin mid-session.
 type claimsFile struct {
-	Locked      map[string]string `json:"locked_tabs"`
-	LockedPanes map[string]string `json:"locked_panes"`
+	Locked       map[string]string `json:"locked_tabs"`
+	LockedPanes  map[string]string `json:"locked_panes"`
+	LockedAgents map[string]string `json:"locked_agents,omitempty"`
 }
 
 // isLocked reports whether the user has claimed this one.
@@ -98,7 +99,7 @@ func (l *Labels) settle() {
 
 	l.settled = true
 
-	for _, c := range []*claims{l.tabs, l.panes} {
+	for _, c := range []*claims{l.tabs, l.panes, l.agents} {
 		clear(c.departed)
 	}
 }
@@ -199,7 +200,7 @@ func (c *claims) claimedOnChange(s sighting, previous seenLabels, known, ours bo
 		if s.current == previous.current {
 			return verdictName
 		}
-	case !c.labels.settled:
+	case !c.labels.settled && !c.kind.claimsFirstSights:
 		// The first poll, where nothing carries a name Auto Title has set.
 		return verdictName
 	}
@@ -236,8 +237,9 @@ func (l *Labels) saveLocked() {
 	// encoding/json sorts map keys itself, so the file is diffable already.
 	raw, err := json.MarshalIndent(
 		claimsFile{
-			Locked:      l.tabs.locked,
-			LockedPanes: l.panes.locked,
+			Locked:       l.tabs.locked,
+			LockedPanes:  l.panes.locked,
+			LockedAgents: l.agents.locked,
 		},
 		"",
 		"  ",

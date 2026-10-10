@@ -38,6 +38,14 @@ type PaneState struct {
 	// the transcript Herdr pointed at. Empty unless the agent's integration
 	// hook is installed — see docs/architecture/title-resolution.md.
 	AgentTopic string
+	// AgentAITitle is the title Claude Code generated for the session, on its
+	// own: AgentTopic falls back to the opening prompt when there is none.
+	AgentAITitle string
+	// AgentPrompts are the last few prompts the user typed into the session,
+	// oldest first, and AgentTurns how many have been typed so far. They are
+	// what an agent's name is chosen from.
+	AgentPrompts []string
+	AgentTurns   int
 	// AgentSession names the conversation that agent holds, which is how the
 	// transcript behind AgentTopic is found. Nil until the agent's integration
 	// reports one.

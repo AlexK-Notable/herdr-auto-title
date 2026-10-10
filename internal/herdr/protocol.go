@@ -43,6 +43,15 @@ const (
 	// CodePaneNotFound is the same for a pane, which can close between the
 	// snapshot that listed it and the read of what is running in it.
 	CodePaneNotFound = "pane_not_found"
+	// CodeAgentNotFound is answered when the pane holds no agent any more, or
+	// is gone: probed live against Herdr 0.9.2.
+	CodeAgentNotFound = "agent_not_found"
+	// CodeAgentNameTaken is answered when another live agent already carries
+	// the name: agent names are unique across the session.
+	CodeAgentNameTaken = "agent_name_taken"
+	// CodeInvalidAgentName is answered for a name outside
+	// ^[a-z][a-z0-9_-]{0,31}$, which nothing here should ever send.
+	CodeInvalidAgentName = "invalid_agent_name"
 )
 
 // ErrUnanswered marks a call that failed after its request was sent. Herdr
@@ -68,6 +77,7 @@ const (
 	MethodPaneProcessInfo         = "pane.process_info"
 	MethodTabRename               = "tab.rename"
 	MethodPaneRename              = "pane.rename"
+	MethodAgentRename             = "agent.rename"
 	MethodWorkspaceReportMetadata = "workspace.report_metadata"
 	MethodNotificationShow        = "notification.show"
 )
@@ -84,6 +94,13 @@ type TabRenameParams struct {
 type PaneRenameParams struct {
 	PaneID string `json:"pane_id"`
 	Label  string `json:"label"`
+}
+
+// AgentRenameParams names the agent in a pane. Target takes a pane id or a
+// live agent name; a nil Name clears it, which Auto Title never sends.
+type AgentRenameParams struct {
+	Target string  `json:"target"`
+	Name   *string `json:"name"`
 }
 
 // NotificationParams is a notice for the user. Only the title is required;

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -44,6 +45,13 @@ type Topic struct {
 	// Dir is where the agent was last working, which is its own directory and
 	// not the pane's: an agent sent into a worktree stays there.
 	Dir string
+	// Prompts are the last few things the user typed, oldest first, with the
+	// markup Claude Code wraps around injected text taken out. Only lines whose
+	// origin is human count: task notifications and tool results do not.
+	Prompts []string
+	// Turns counts the prompts read so far, so a caller can tell a new one from
+	// a repeat without comparing text.
+	Turns int
 }
 
 // Text is what the topic contributes to a title, the generated name first.
@@ -323,10 +331,59 @@ func (t *transcript) absorb(lines string) {
 		switch {
 		case read.Type == "ai-title" && read.AITitle != "":
 			t.topic.Title = read.AITitle
-		case read.Type == "user" && t.topic.Opening == "" && read.Origin != nil && read.Origin.Kind == humanOrigin:
-			t.topic.Opening = opening(read.Message.Content)
+		case read.Type == "user" && read.Origin != nil && read.Origin.Kind == humanOrigin:
+			if t.topic.Opening == "" {
+				t.topic.Opening = opening(read.Message.Content)
+			}
+
+			remember(&t.topic, prompt(read.Message.Content))
 		}
 	}
+}
+
+// maxPrompts is how many recent prompts a topic keeps, and maxPrompt how long
+// each may be: enough to say what the work is, not to replay it.
+const (
+	maxPrompts = 4
+	maxPrompt  = 400
+)
+
+// remember keeps a prompt among the topic's last few. An empty one still
+// counts as a turn: the user did type something. A function rather than a
+// method, because Topic is otherwise a value with value methods.
+func remember(topic *Topic, text string) {
+	topic.Turns++
+
+	if text == "" {
+		return
+	}
+
+	topic.Prompts = append(topic.Prompts, text)
+	if len(topic.Prompts) > maxPrompts {
+		topic.Prompts = slices.Clone(topic.Prompts[len(topic.Prompts)-maxPrompts:])
+	}
+}
+
+// whitespacePattern matches the runs of whitespace a prompt is folded on.
+var whitespacePattern = regexp.MustCompile(`\s+`)
+
+// prompt reduces a typed message to what says what the user wants: a slash
+// command keeps its name and arguments, injected blocks are dropped, and
+// whitespace is folded so a pasted log does not crowd out the request.
+func prompt(content json.RawMessage) string {
+	text, ok := textOf(content)
+	if !ok {
+		return ""
+	}
+
+	if command := commandPattern.FindStringSubmatch(text); command != nil {
+		return truncate(withArgs(command[1], text), maxPrompt)
+	}
+
+	text = markupPattern.ReplaceAllString(text, " ")
+	text = strings.TrimSpace(whitespacePattern.ReplaceAllString(text, " "))
+
+	return truncate(text, maxPrompt)
 }
 
 // commandPattern matches the marker Claude Code wraps a slash command in.

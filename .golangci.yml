@@ -86,6 +86,9 @@ linters:
             - github.com/kryptamine/herdr-auto-title
             - github.com/rivo/uniseg
             - github.com/joho/godotenv
+            # Agent naming talks to the Anthropic API through its official
+            # SDK rather than a hand-rolled client: retries, typed errors.
+            - github.com/anthropics/anthropic-sdk-go
           deny:
             - pkg: os/exec
               desc: renames go over the socket API, never through a shell
@@ -124,6 +127,19 @@ linters:
 
   exclusions:
     rules:
+      # Agent naming runs two commands, and only these two files may: the
+      # claude CLI (argv constant, payload on stdin, environment sealed) and
+      # the user's own API-key command (argv from configuration, no shell).
+      # Nothing terminal-derived reaches either argument vector; the tests in
+      # internal/namer pin that.
+      - path: internal/namer/(cli|key)\.go
+        linters:
+          - depguard
+        text: os/exec
+      - path: internal/namer/(cli|key)\.go
+        linters:
+          - forbidigo
+        text: exec\.Command
       # A test writes fixtures into its own temporary directory and closes a
       # listener it owns; neither is the file permission or missing context
       # these two are looking for.

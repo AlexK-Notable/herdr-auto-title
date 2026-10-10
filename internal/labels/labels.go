@@ -21,9 +21,10 @@ import (
 // Labels outlives a poll because what it remembers does: the label each thing
 // last carried, and the ones the user claimed, which are kept on disk too.
 type Labels struct {
-	tabs  *claims
-	panes *claims
-	log   *slog.Logger
+	tabs   *claims
+	panes  *claims
+	agents *claims
+	log    *slog.Logger
 
 	mu   sync.Mutex
 	path string
@@ -39,6 +40,7 @@ func Load(path string, log *slog.Logger) *Labels {
 	l := &Labels{path: path, log: log}
 	l.tabs = newClaims(l, tabKind)
 	l.panes = newClaims(l, paneKind)
+	l.agents = newClaims(l, agentKind)
 
 	raw, err := os.ReadFile(path) //nolint:gosec // the path is configured, never terminal-derived
 	if err != nil {
@@ -52,6 +54,7 @@ func Load(path string, log *slog.Logger) *Labels {
 
 	maps.Copy(l.tabs.locked, stored.Locked)
 	maps.Copy(l.panes.locked, stored.LockedPanes)
+	maps.Copy(l.agents.locked, stored.LockedAgents)
 
 	return l
 }
@@ -67,6 +70,12 @@ func (l *Labels) Pass(client herdr.Client, snapshot herdr.Snapshot) *Pass {
 	// arrives here as the empty string.
 	l.panes.retain(labelsOf(snapshot.Panes, func(pane herdr.PaneInfo) (string, string) {
 		return pane.PaneID, pane.Label
+	}))
+
+	// An agent with no name is left out of the list or carries null, both of
+	// which arrive here as the empty string.
+	l.agents.retain(labelsOf(snapshot.Agents, func(agent herdr.AgentInfo) (string, string) {
+		return agent.PaneID, agent.Name
 	}))
 
 	return &Pass{labels: l, client: client}
@@ -98,6 +107,10 @@ func (p *Pass) PaneLocked(id string) bool {
 	return p.labels.panes.isLocked(id)
 }
 
+func (p *Pass) AgentLocked(paneID string) bool {
+	return p.labels.agents.isLocked(paneID)
+}
+
 // Tab gives a tab the name chosen for it, unless the user put the label it
 // carries there. A claimed tab is not looked at again until its label moves.
 func (p *Pass) Tab(ctx context.Context, tab state.TabState, decision resolver.Decision) {
@@ -117,6 +130,19 @@ func (p *Pass) Pane(ctx context.Context, pane *state.PaneState, decision resolve
 	}
 
 	p.apply(ctx, claims, sightingOfPane(pane, decision.Name), decision)
+}
+
+// Agent gives the agent in a pane the name chosen for it, on the terms Tab
+// gives a tab its — with one difference: a name the agent already wears when
+// first sighted is the user's unless it is the one chosen for it, because an
+// agent started as `herdr agent start reviewer` is named on purpose.
+func (p *Pass) Agent(ctx context.Context, paneID, current string, decision resolver.Decision) {
+	claims := p.labels.agents
+	if claims.isLocked(paneID) {
+		return
+	}
+
+	p.apply(ctx, claims, sighting{id: paneID, current: current, desired: decision.Name}, decision)
 }
 
 // Settle ends a pass that saw everything the session holds. A pass cut short
@@ -188,6 +214,11 @@ type kind struct {
 	// the same one, moved. Only a pane: Herdr moves one across workspaces under
 	// a new id, label intact, while a moved tab keeps its id.
 	followsMoves bool
+	// claimsFirstSights judges names already present on the first poll instead
+	// of passing them. A tab or pane cannot: Auto Title's own labels from a
+	// previous run look the same. An agent can, because the namer remembers the
+	// names it chose across runs and passes them in as the desired name.
+	claimsFirstSights bool
 }
 
 var (
@@ -201,6 +232,15 @@ var (
 		rename:       herdr.RenamePane,
 		gone:         herdr.CodePaneNotFound,
 		followsMoves: true,
+	}
+	// An agent is addressed by the pane it occupies. Herdr clears its name when
+	// the agent exits or is replaced, so unnamed is only ever the empty string.
+	agentKind = kind{
+		noun:              "agent",
+		rename:            herdr.RenameAgent,
+		gone:              herdr.CodeAgentNotFound,
+		followsMoves:      true,
+		claimsFirstSights: true,
 	}
 )
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/kryptamine/herdr-auto-title/internal/herdr"
 	"github.com/kryptamine/herdr-auto-title/internal/labels"
+	"github.com/kryptamine/herdr-auto-title/internal/namer"
 	"github.com/kryptamine/herdr-auto-title/internal/reads"
 	"github.com/kryptamine/herdr-auto-title/internal/resolver"
 	"github.com/kryptamine/herdr-auto-title/internal/state"
@@ -51,6 +52,8 @@ type App struct {
 	changes  *state.Changes
 	labels   *labels.Labels
 	reads    *reads.Reader
+	// agents chooses each agent's name, and is nil when naming agents is off.
+	agents *namer.Service
 	// failures is the run of polls that have failed in a row, which decides
 	// how loudly the next one is reported.
 	failures failureLog
@@ -252,6 +255,10 @@ func (a *App) readAndRename(ctx context.Context, client herdr.Client) error {
 		if a.panes != nil {
 			a.namePanes(ctx, pass, poll, tab)
 		}
+	}
+
+	if a.agents != nil {
+		a.nameAgents(ctx, pass, poll, snapshot, tabs)
 	}
 
 	// The loop checks the deadline only between tabs, so the last tab's panes

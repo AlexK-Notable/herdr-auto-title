@@ -187,6 +187,12 @@ func RenamePane(ctx context.Context, c Client, paneID, label string) error {
 	return c.Call(ctx, MethodPaneRename, PaneRenameParams{PaneID: paneID, Label: label}, nil)
 }
 
+// RenameAgent names the agent in a pane, which is what the sidebar's agent
+// token shows and what `herdr agent` commands take as a target.
+func RenameAgent(ctx context.Context, c Client, paneID, name string) error {
+	return c.Call(ctx, MethodAgentRename, AgentRenameParams{Target: paneID, Name: &name}, nil)
+}
+
 // ShowNotification puts a notice in front of the user and reports whether it
 // was shown, with Herdr's reason when it was not: nothing is shown without a
 // client attached, and two within a second is one too many.

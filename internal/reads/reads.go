@@ -94,6 +94,9 @@ func (p *Poll) Fill(ctx context.Context, pane *state.PaneState) {
 	// agent is working, and that is where the branch is read from.
 	topic := p.reader.topic(ctx, pane, dir)
 	pane.AgentTopic = topic.Text()
+	pane.AgentAITitle = topic.Title
+	pane.AgentPrompts = topic.Prompts
+	pane.AgentTurns = topic.Turns
 	pane.Git = p.checkout(ctx, dir)
 	pane.AgentGit = p.checkout(ctx, topic.Dir)
 	pane.AgentDir = topic.Dir

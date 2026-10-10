@@ -15,6 +15,8 @@ const (
 	ownDir     = "herdr-auto-title"
 	ConfigFile = "config.env"
 	manualFile = "manual-names.json"
+	// agentNamesFile remembers the names chosen for agents, by session.
+	agentNamesFile = "agent-names.json"
 )
 
 // ownPath is where Auto Title's file called name lives: the first directory

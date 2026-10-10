@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -39,6 +40,12 @@ type PaneRenameCall struct {
 	Label  string
 }
 
+// AgentRenameCall is one agent.rename the stub accepted.
+type AgentRenameCall struct {
+	PaneID string
+	Name   string
+}
+
 // WorkspaceReportCall is one workspace.report_metadata the stub received. A nil
 // token value is a clear.
 type WorkspaceReportCall struct {
@@ -58,6 +65,8 @@ type Client struct {
 	processes        map[string][]herdr.PaneProcessInfoProcess
 	renames          []RenameCall
 	paneRenames      []PaneRenameCall
+	agentNames       map[string]string
+	agentRenames     []AgentRenameCall
 	workspaceReports []WorkspaceReportCall
 	renameErr        error
 	reportErr        error
@@ -72,10 +81,11 @@ var _ herdr.Client = (*Client)(nil)
 
 func New(tabs []herdr.TabInfo, panes []herdr.PaneInfo) *Client {
 	s := &Client{
-		tabs:      make(map[string]herdr.TabInfo, len(tabs)),
-		panes:     make(map[string]herdr.PaneInfo, len(panes)),
-		processes: make(map[string][]herdr.PaneProcessInfoProcess),
-		server:    "herdrtest",
+		tabs:       make(map[string]herdr.TabInfo, len(tabs)),
+		panes:      make(map[string]herdr.PaneInfo, len(panes)),
+		processes:  make(map[string][]herdr.PaneProcessInfoProcess),
+		agentNames: make(map[string]string),
+		server:     "herdrtest",
 	}
 	for _, tab := range tabs {
 		s.tabs[tab.TabID] = tab
@@ -129,7 +139,34 @@ func (s *Client) SetPane(pane herdr.PaneInfo) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// Herdr clears an agent's name when the agent leaves the pane.
+	if pane.Agent == "" {
+		delete(s.agentNames, pane.PaneID)
+	}
+
 	s.panes[pane.PaneID] = pane
+}
+
+// SetAgentName names a pane's agent as something other than Auto Title would:
+// the user, or `herdr agent start <name>`. An empty name clears it, as Herdr
+// does when the agent exits or is replaced.
+func (s *Client) SetAgentName(paneID, name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if name == "" {
+		delete(s.agentNames, paneID)
+		return
+	}
+
+	s.agentNames[paneID] = name
+}
+
+func (s *Client) AgentRenames() []AgentRenameCall {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return slices.Clone(s.agentRenames)
 }
 
 func (s *Client) CloseTab(tabID string) {
@@ -144,6 +181,7 @@ func (s *Client) ClosePane(paneID string) {
 	defer s.mu.Unlock()
 
 	delete(s.panes, paneID)
+	delete(s.agentNames, paneID)
 }
 
 // SetRenameError makes every subsequent tab rename fail with err. One wrapping
@@ -237,6 +275,7 @@ func (s *Client) Call(ctx context.Context, method string, params any, result any
 			Workspaces: slices.Clone(s.workspaces),
 			Tabs:       sorted(s.tabs, func(t herdr.TabInfo) string { return t.TabID }),
 			Panes:      sorted(s.panes, func(p herdr.PaneInfo) string { return p.PaneID }),
+			Agents:     s.agents(),
 		}})
 
 	case herdr.MethodPaneProcessInfo:
@@ -247,6 +286,9 @@ func (s *Client) Call(ctx context.Context, method string, params any, result any
 
 	case herdr.MethodPaneRename:
 		return s.renamePane(params)
+
+	case herdr.MethodAgentRename:
+		return s.renameAgent(params)
 
 	case herdr.MethodWorkspaceReportMetadata:
 		return s.reportMetadata(params)
@@ -327,6 +369,69 @@ func (s *Client) renamePane(params any) error {
 	pane.Label = call.Label
 	s.panes[call.PaneID] = pane
 	s.paneRenames = append(s.paneRenames, PaneRenameCall(call))
+
+	return nil
+}
+
+// agents lists every pane holding an agent, in pane order, as Herdr does.
+func (s *Client) agents() []herdr.AgentInfo {
+	var agents []herdr.AgentInfo
+
+	for _, pane := range sorted(s.panes, func(p herdr.PaneInfo) string { return p.PaneID }) {
+		if pane.Agent != "" {
+			agents = append(
+				agents,
+				herdr.AgentInfo{PaneID: pane.PaneID, Name: s.agentNames[pane.PaneID]},
+			)
+		}
+	}
+
+	return agents
+}
+
+// agentNamePattern is the rule Herdr 0.9.2 enforces on an agent name.
+var agentNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,31}$`)
+
+// renameAgent applies Herdr's rules as probed live: the pane must hold an
+// agent, the name must be valid, and no other live agent may carry it.
+func (s *Client) renameAgent(params any) error {
+	var call herdr.AgentRenameParams
+	if err := decode(params, &call); err != nil {
+		return err
+	}
+
+	pane, live := s.panes[call.Target]
+	if !live || pane.Agent == "" {
+		return &herdr.APIError{
+			Code:    herdr.CodeAgentNotFound,
+			Message: "agent target " + call.Target + " not found",
+		}
+	}
+
+	if call.Name == nil {
+		delete(s.agentNames, call.Target)
+		return nil
+	}
+
+	name := *call.Name
+	if !agentNamePattern.MatchString(name) {
+		return &herdr.APIError{
+			Code:    herdr.CodeInvalidAgentName,
+			Message: "agent name " + name + " is invalid",
+		}
+	}
+
+	for id, held := range s.agentNames {
+		if held == name && id != call.Target {
+			return &herdr.APIError{
+				Code:    herdr.CodeAgentNameTaken,
+				Message: "agent name " + name + " is already used",
+			}
+		}
+	}
+
+	s.agentNames[call.Target] = name
+	s.agentRenames = append(s.agentRenames, AgentRenameCall{PaneID: call.Target, Name: name})
 
 	return nil
 }

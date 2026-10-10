@@ -101,12 +101,22 @@ type PaneProcessInfo struct {
 	ForegroundProcesses      []PaneProcessInfoProcess `json:"foreground_processes"`
 }
 
+// AgentInfo is one agent as session.snapshot lists it. Only what names it is
+// decoded: the rest repeats the pane it occupies.
+type AgentInfo struct {
+	PaneID string `json:"pane_id"`
+	// Name is the agent's own name, which Herdr omits while it has none and
+	// clears when the agent exits or is replaced.
+	Name string `json:"name"`
+}
+
 // Snapshot is the whole session as session.snapshot reports it.
 type Snapshot struct {
 	Workspaces []WorkspaceInfo `json:"workspaces"`
 
-	Tabs  []TabInfo  `json:"tabs"`
-	Panes []PaneInfo `json:"panes"`
+	Tabs   []TabInfo   `json:"tabs"`
+	Panes  []PaneInfo  `json:"panes"`
+	Agents []AgentInfo `json:"agents"`
 }
 
 type snapshotResult struct {

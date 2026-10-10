@@ -740,3 +740,53 @@ func TestATranscriptThatMovedHomesIsFoundAgain(t *testing.T) {
 		t.Errorf("text = %q, want the transcript found in the other home", got.Text())
 	}
 }
+
+func notification(text string) string {
+	return `{"type":"user","origin":{"kind":"task-notification"},"message":{"role":"user","content":"` + text + `"}}`
+}
+
+func TestATopicKeepsTheLastFewTypedPromptsAndCountsThem(t *testing.T) {
+	t.Parallel()
+
+	p := newProject(t)
+	p.write(
+		human("first"),
+		notification("<task-notification>agent finished</task-notification>"),
+		expanded("<command-message>skill</command-message> Base directory for this skill"),
+		human("second"),
+		toolResult(),
+		human("third <system-reminder>noise</system-reminder> part"),
+		human("fourth"),
+		human("fifth\\n\\n   with   spaces"),
+	)
+
+	topic := p.reader().Topic(session, started)
+
+	want := []string{"second", "third part", "fourth", "fifth with spaces"}
+	if strings.Join(topic.Prompts, "|") != strings.Join(want, "|") {
+		t.Errorf("prompts = %q, want %q", topic.Prompts, want)
+	}
+
+	if topic.Turns != 5 {
+		t.Errorf("turns = %d, want 5", topic.Turns)
+	}
+}
+
+func TestATopicCountsAPromptAppendedLater(t *testing.T) {
+	t.Parallel()
+
+	p := newProject(t)
+	p.write(human("first"))
+	r := p.reader()
+
+	if got := r.Topic(session, started).Turns; got != 1 {
+		t.Fatalf("turns = %d, want 1", got)
+	}
+
+	p.appendLines(notification("done"), human("second"))
+
+	topic := r.Topic(session, started)
+	if topic.Turns != 2 || topic.Prompts[len(topic.Prompts)-1] != "second" {
+		t.Errorf("topic = %+v, want 2 turns ending in second", topic)
+	}
+}
