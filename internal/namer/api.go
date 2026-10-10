@@ -54,7 +54,7 @@ func (a *API) Name(ctx context.Context, req Request) (string, error) {
 	resp, err := a.client.Messages.New(ctx, anthropic.MessageNewParams{
 		Model:     a.model,
 		MaxTokens: maxTokens,
-		System:    []anthropic.TextBlockParam{{Text: systemPrompt}},
+		System:    []anthropic.TextBlockParam{{Text: system(req)}},
 		Messages: []anthropic.MessageParam{
 			anthropic.NewUserMessage(anthropic.NewTextBlock(payload(req))),
 		},

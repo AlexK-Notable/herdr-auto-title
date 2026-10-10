@@ -42,9 +42,13 @@ const (
 	EnvNamer         = "HERDR_AUTO_TITLE_NAMER"
 	EnvNamerModel    = "HERDR_AUTO_TITLE_NAMER_MODEL"
 	EnvNamerInterval = "HERDR_AUTO_TITLE_NAMER_INTERVAL_S"
-	EnvClaudeBin     = "HERDR_AUTO_TITLE_CLAUDE_BIN"
-	EnvAPIKeyCommand = "HERDR_AUTO_TITLE_API_KEY_CMD" //nolint:gosec // a variable name, not a credential
-	EnvAnthropicKey  = "ANTHROPIC_API_KEY"
+	// EnvNameWorkspaces has the same model label each workspace after
+	// everything going on in it, at most every EnvWorkspaceInterval seconds.
+	EnvNameWorkspaces    = "HERDR_AUTO_TITLE_NAME_WORKSPACES"
+	EnvWorkspaceInterval = "HERDR_AUTO_TITLE_WORKSPACE_INTERVAL_S"
+	EnvClaudeBin         = "HERDR_AUTO_TITLE_CLAUDE_BIN"
+	EnvAPIKeyCommand     = "HERDR_AUTO_TITLE_API_KEY_CMD" //nolint:gosec // a variable name, not a credential
+	EnvAnthropicKey      = "ANTHROPIC_API_KEY"
 	// EnvWorkspace names the workspace an API key not scoped to one bills to.
 	// ANTHROPIC_WORKSPACE_ID, the SDKs' own name for it, is read as well.
 	EnvWorkspace          = "HERDR_AUTO_TITLE_ANTHROPIC_WORKSPACE_ID"
@@ -121,6 +125,11 @@ type Config struct {
 
 	// NameAgents names each Claude Code agent after its task, with a model.
 	NameAgents bool
+	// NameWorkspaces labels each workspace with the same model, from its
+	// directories, repositories and agents. The label then stays: Herdr stops
+	// deriving it from the workspace's directory.
+	NameWorkspaces    bool
+	WorkspaceInterval time.Duration
 	// Namer is how the model is reached: NamerCLI or NamerAPI. The API key is
 	// deliberately not held here, so no dump of the configuration can print it:
 	// it is read from ANTHROPIC_API_KEY or APIKeyCommand when the backend is
@@ -157,22 +166,24 @@ func LoadConfig() (Config, []string) {
 	}
 
 	cfg := Config{
-		Poll:             DefaultPoll,
-		MaxLength:        resolver.DefaultMaxLength,
-		BranchMax:        resolver.DefaultBranchMaxLength,
-		ShowPosition:     true,
-		ManualPath:       ownPath(manualFile),
-		ReadTranscripts:  true,
-		RenamePanes:      true,
-		ReportWorkspaces: true,
-		ClaudeDirs:       homes,
-		Home:             userHome(),
-		NameAgents:       true,
-		Namer:            NamerCLI,
-		NamerModel:       namer.DefaultModel,
-		NamerInterval:    namer.DefaultInterval,
-		ClaudeBin:        "claude",
-		AgentNamesPath:   ownPath(agentNamesFile),
+		Poll:              DefaultPoll,
+		MaxLength:         resolver.DefaultMaxLength,
+		BranchMax:         resolver.DefaultBranchMaxLength,
+		ShowPosition:      true,
+		ManualPath:        ownPath(manualFile),
+		ReadTranscripts:   true,
+		RenamePanes:       true,
+		ReportWorkspaces:  true,
+		ClaudeDirs:        homes,
+		Home:              userHome(),
+		NameAgents:        true,
+		Namer:             NamerCLI,
+		NamerModel:        namer.DefaultModel,
+		NamerInterval:     namer.DefaultInterval,
+		NameWorkspaces:    true,
+		WorkspaceInterval: namer.DefaultWorkspaceInterval,
+		ClaudeBin:         "claude",
+		AgentNamesPath:    ownPath(agentNamesFile),
 		// ShowAgentName stays false: most sessions run one agent, whose name
 		// would repeat on every tab.
 	}
@@ -212,6 +223,9 @@ func loadNamerConfig(cfg *Config, warnings *[]string) {
 	cfg.NameAgents = fromEnv(warnings, EnvAgents, cfg.NameAgents, boolean)
 	cfg.Namer = fromEnv(warnings, EnvNamer, cfg.Namer, namerKind)
 	cfg.NamerInterval = fromEnv(warnings, EnvNamerInterval, cfg.NamerInterval, seconds)
+	cfg.NameWorkspaces = fromEnv(warnings, EnvNameWorkspaces, cfg.NameWorkspaces, boolean)
+	cfg.WorkspaceInterval = fromEnv(
+		warnings, EnvWorkspaceInterval, cfg.WorkspaceInterval, seconds)
 
 	if raw := strings.TrimSpace(os.Getenv(EnvNamerModel)); raw != "" {
 		cfg.NamerModel = raw

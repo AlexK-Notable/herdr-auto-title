@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -51,7 +52,7 @@ func TestATabSightingCarriesItsPositionAsItsDefault(t *testing.T) {
 		byDefault: "3",
 	}
 
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("sighting = %+v, want %+v", got, want)
 	}
 }
@@ -360,7 +361,7 @@ func TestAPaneSightingHasNoDefaultLabel(t *testing.T) {
 	got := sightingOfPane(&state.PaneState{ID: "wE:p1", CurrentName: "Important work"}, "dashboard")
 	want := sighting{id: "wE:p1", current: "Important work", desired: "dashboard"}
 
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("sighting = %+v, want %+v", got, want)
 	}
 }

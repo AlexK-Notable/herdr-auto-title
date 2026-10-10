@@ -76,7 +76,7 @@ func TestASessionWithNothingTypedIsNotNamed(t *testing.T) {
 	b := &fakeBackend{names: []string{"x"}}
 	s, _ := newService(b, "")
 
-	s.Name(sess, 0, Request{})
+	s.Name(sess, "", Request{})
 	drain(s)
 
 	if b.count() != 0 {
@@ -90,14 +90,14 @@ func TestANameIsAskedForOnceAndReturnedWithoutBlocking(t *testing.T) {
 	b := &fakeBackend{names: []string{"Fix Search"}}
 	s, _ := newService(b, "")
 
-	if got := s.Name(sess, 1, Request{}); got != "" {
+	if got := s.Name(sess, "1", Request{}); got != "" {
 		t.Errorf("before the model answered: %q", got)
 	}
 
-	s.Name(sess, 1, Request{}) // a second poll before the answer queues nothing more
+	s.Name(sess, "1", Request{}) // a second poll before the answer queues nothing more
 	drain(s)
 
-	if got := s.Name(sess, 1, Request{}); got != "fix-search" {
+	if got := s.Name(sess, "1", Request{}); got != "fix-search" {
 		t.Errorf("after: %q, want the slug", got)
 	}
 
@@ -114,12 +114,12 @@ func TestANewPromptRenamesOnlyAfterTheInterval(t *testing.T) {
 	b := &fakeBackend{names: []string{"first", "second"}}
 	s, c := newService(b, "")
 
-	s.Name(sess, 1, Request{})
+	s.Name(sess, "1", Request{})
 	drain(s)
 
 	c.t = c.t.Add(time.Minute)
 
-	s.Name(sess, 2, Request{})
+	s.Name(sess, "2", Request{})
 	drain(s)
 
 	if b.count() != 1 {
@@ -128,16 +128,16 @@ func TestANewPromptRenamesOnlyAfterTheInterval(t *testing.T) {
 
 	c.t = c.t.Add(2 * time.Minute)
 
-	s.Name(sess, 2, Request{})
+	s.Name(sess, "2", Request{})
 	drain(s)
 
-	if got := s.Name(sess, 2, Request{}); got != "second" {
+	if got := s.Name(sess, "2", Request{}); got != "second" {
 		t.Errorf("got %q, want second", got)
 	}
 
 	c.t = c.t.Add(10 * time.Minute)
 
-	s.Name(sess, 2, Request{}) // no new prompt: no new name
+	s.Name(sess, "2", Request{}) // no new prompt: no new name
 	drain(s)
 
 	if b.count() != 2 {
@@ -150,17 +150,17 @@ func TestAFailureBacksOffAndKeepsTheOldName(t *testing.T) {
 
 	b := &fakeBackend{names: []string{"first"}}
 	s, c := newService(b, "")
-	s.Name(sess, 1, Request{})
+	s.Name(sess, "1", Request{})
 	drain(s)
 
 	b.err = errors.New("rate limited")
 	c.t = c.t.Add(3 * time.Minute)
 
-	s.Name(sess, 2, Request{})
+	s.Name(sess, "2", Request{})
 	drain(s)
 
 	c.t = c.t.Add(10 * time.Second)
-	if got := s.Name(sess, 2, Request{}); got != "first" {
+	if got := s.Name(sess, "2", Request{}); got != "first" {
 		t.Errorf("got %q, want the old name kept", got)
 	}
 
@@ -174,7 +174,7 @@ func TestAFailureBacksOffAndKeepsTheOldName(t *testing.T) {
 	b.names = []string{"second"}
 	c.t = c.t.Add(time.Minute)
 
-	s.Name(sess, 2, Request{})
+	s.Name(sess, "2", Request{})
 	drain(s)
 
 	if got := s.Remembered(sess); got != "second" {
@@ -189,7 +189,7 @@ func TestNamesSurviveARestart(t *testing.T) {
 
 	b := &fakeBackend{names: []string{"fix-search"}}
 	first, _ := newService(b, path)
-	first.Name(sess, 1, Request{})
+	first.Name(sess, "1", Request{})
 	drain(first)
 
 	second, _ := newService(b, path)
@@ -197,7 +197,7 @@ func TestNamesSurviveARestart(t *testing.T) {
 		t.Errorf("after restart: %q", got)
 	}
 
-	second.Name(sess, 1, Request{})
+	second.Name(sess, "1", Request{})
 	drain(second)
 
 	if b.count() != 1 {

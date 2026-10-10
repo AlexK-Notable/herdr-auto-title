@@ -1,5 +1,6 @@
 // Package namer chooses a name for each coding agent from what the user has
-// been asking it to do, by asking a small model. The model is reached either
+// been asking it to do, and for each workspace from everything going on in it,
+// by asking a small model. The model is reached either
 // through the `claude` CLI or the Anthropic API; everything else — when to ask,
 // what to remember, how to keep names unique — is the same for both.
 package namer
@@ -19,8 +20,11 @@ const DefaultModel = "claude-haiku-5-5"
 // MaxName is the longest name Herdr accepts for an agent.
 const MaxName = 32
 
-// Request is what a name is chosen from.
+// Request is what a name is chosen from. Agent, Title and Prompts describe an
+// agent; Dirs, Repos and Agents a workspace.
 type Request struct {
+	// Task is what is being named.
+	Task Task
 	// Agent is the kind of agent, such as "claude".
 	Agent string
 	// Dir is the directory the agent works in.
@@ -32,11 +36,18 @@ type Request struct {
 	Prompts []string
 	// Current is the name the agent wears now, empty when it has none.
 	Current string
-	// Taken are the names other live agents wear, which this one cannot have.
+	// Taken are the names others of its kind wear, which this one cannot have.
 	Taken []string
+
+	// Dirs are the directories open in a workspace's panes, home-relative.
+	Dirs []string
+	// Repos are the repositories those directories are in.
+	Repos []string
+	// Agents are the agents in a workspace.
+	Agents []AgentBrief
 }
 
-// Backend asks a model for a name. The name it returns is raw: Slug makes it
+// Backend asks a model for a name. The name it returns is raw: Clean makes it
 // one Herdr accepts.
 type Backend interface {
 	Name(ctx context.Context, req Request) (string, error)
@@ -44,7 +55,7 @@ type Backend interface {
 	String() string
 }
 
-// systemPrompt tells the model what a good name is. It stays fixed so a
+// systemPrompt tells the model what a good agent name is. It stays fixed so a
 // backend that caches prompts can reuse it.
 const systemPrompt = `You name coding-agent sessions so a person juggling several of them can tell at a glance what each one is doing.
 
@@ -62,7 +73,7 @@ var schema = map[string]any{
 	"properties": map[string]any{
 		"name": map[string]any{
 			"type":        "string",
-			"description": "2-4 lowercase hyphenated words, at most 32 characters",
+			"description": "the name, in the form the instructions ask for",
 		},
 	},
 	"required":             []string{"name"},
@@ -79,8 +90,35 @@ func schemaJSON() string {
 	return string(raw)
 }
 
-// payload is the user turn: the facts about one session, as plain text.
+// system is the instructions for what req names.
+func system(req Request) string {
+	if req.Task == TaskWorkspace {
+		return workspacePrompt
+	}
+
+	return systemPrompt
+}
+
+// payload is the user turn: the facts about what req names, as plain text.
 func payload(req Request) string {
+	if req.Task == TaskWorkspace {
+		return workspacePayload(req)
+	}
+
+	return agentPayload(req)
+}
+
+// Clean makes a model's answer the name req asks for, "" when none is left.
+func Clean(req Request, raw string) string {
+	if req.Task == TaskWorkspace {
+		return Words(raw)
+	}
+
+	return Slug(raw)
+}
+
+// agentPayload is the user turn for one agent's session.
+func agentPayload(req Request) string {
 	var b strings.Builder
 
 	fmt.Fprintf(&b, "Agent: %s\n", req.Agent)

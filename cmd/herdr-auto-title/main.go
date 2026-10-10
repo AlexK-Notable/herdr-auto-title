@@ -91,10 +91,16 @@ func run() error {
 	titles, panes, topics := app.Resolvers(cfg)
 	auto := app.New(cfg, log, titles, panes, topics, claim)
 
-	if service := agentNamer(ctx, cfg, log); service != nil {
+	if service := modelNamer(ctx, cfg, log); service != nil {
 		go service.Run(ctx)
 
-		auto.WithAgentNamer(service)
+		if namesAgents(cfg, log) {
+			auto.WithAgentNamer(service)
+		}
+
+		if cfg.NameWorkspaces {
+			auto.WithWorkspaceNamer(service)
+		}
 	}
 
 	auto.Run(ctx, client)
@@ -102,34 +108,45 @@ func run() error {
 	return nil
 }
 
-// agentNamer builds the service that names agents, or nil when that is off or
-// cannot work. A namer that cannot start costs agent names, never tab titles.
-func agentNamer(ctx context.Context, cfg app.Config, log *slog.Logger) *namer.Service {
-	if !cfg.NameAgents {
-		return nil
-	}
-
-	if !cfg.ReadTranscripts {
-		log.Warn("agents are not named: naming them reads their transcripts, which " +
-			app.EnvTranscript + " turned off")
-
+// modelNamer builds the service that names agents and workspaces, or nil when
+// both are off or it cannot work. A namer that cannot start costs those names,
+// never tab titles.
+func modelNamer(ctx context.Context, cfg app.Config, log *slog.Logger) *namer.Service {
+	if !cfg.NameAgents && !cfg.NameWorkspaces {
 		return nil
 	}
 
 	backend, err := app.NamerBackend(ctx, cfg)
 	if err != nil {
-		log.Warn("agents are not named", "error", err)
+		log.Warn("agents and workspaces are not named", "error", err)
 		return nil
 	}
 
-	log.Info("naming agents", "backend", backend.String(), "interval", cfg.NamerInterval)
+	log.Info("naming with a model",
+		"backend", backend.String(),
+		"agents", cfg.NameAgents, "interval", cfg.NamerInterval,
+		"workspaces", cfg.NameWorkspaces, "workspace_interval", cfg.WorkspaceInterval)
 
 	return namer.New(namer.Options{
-		Backend:  backend,
-		Interval: cfg.NamerInterval,
-		Path:     cfg.AgentNamesPath,
-		Log:      log,
+		Backend:           backend,
+		Interval:          cfg.NamerInterval,
+		WorkspaceInterval: cfg.WorkspaceInterval,
+		Path:              cfg.AgentNamesPath,
+		Log:               log,
 	})
+}
+
+// namesAgents reports whether agents are to be named. Naming one reads its
+// transcript, so it needs transcripts read; a workspace does without.
+func namesAgents(cfg app.Config, log *slog.Logger) bool {
+	if cfg.NameAgents && !cfg.ReadTranscripts {
+		log.Warn("agents are not named: naming them reads their transcripts, which " +
+			app.EnvTranscript + " turned off")
+
+		return false
+	}
+
+	return cfg.NameAgents
 }
 
 // restart starts a fresh instance in this one's session and says how that went,

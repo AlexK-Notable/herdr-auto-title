@@ -21,10 +21,11 @@ import (
 // Labels outlives a poll because what it remembers does: the label each thing
 // last carried, and the ones the user claimed, which are kept on disk too.
 type Labels struct {
-	tabs   *claims
-	panes  *claims
-	agents *claims
-	log    *slog.Logger
+	tabs       *claims
+	panes      *claims
+	agents     *claims
+	workspaces *claims
+	log        *slog.Logger
 
 	mu   sync.Mutex
 	path string
@@ -41,6 +42,7 @@ func Load(path string, log *slog.Logger) *Labels {
 	l.tabs = newClaims(l, tabKind)
 	l.panes = newClaims(l, paneKind)
 	l.agents = newClaims(l, agentKind)
+	l.workspaces = newClaims(l, workspaceKind)
 
 	raw, err := os.ReadFile(path) //nolint:gosec // the path is configured, never terminal-derived
 	if err != nil {
@@ -55,6 +57,7 @@ func Load(path string, log *slog.Logger) *Labels {
 	maps.Copy(l.tabs.locked, stored.Locked)
 	maps.Copy(l.panes.locked, stored.LockedPanes)
 	maps.Copy(l.agents.locked, stored.LockedAgents)
+	maps.Copy(l.workspaces.locked, stored.LockedWorkspaces)
 
 	return l
 }
@@ -77,6 +80,12 @@ func (l *Labels) Pass(client herdr.Client, snapshot herdr.Snapshot) *Pass {
 	l.agents.retain(labelsOf(snapshot.Agents, func(agent herdr.AgentInfo) (string, string) {
 		return agent.PaneID, agent.Name
 	}))
+
+	l.workspaces.retain(
+		labelsOf(snapshot.Workspaces, func(ws herdr.WorkspaceInfo) (string, string) {
+			return ws.WorkspaceID, ws.Label
+		}),
+	)
 
 	return &Pass{labels: l, client: client}
 }
@@ -111,6 +120,10 @@ func (p *Pass) AgentLocked(paneID string) bool {
 	return p.labels.agents.isLocked(paneID)
 }
 
+func (p *Pass) WorkspaceLocked(id string) bool {
+	return p.labels.workspaces.isLocked(id)
+}
+
 // Tab gives a tab the name chosen for it, unless the user put the label it
 // carries there. A claimed tab is not looked at again until its label moves.
 func (p *Pass) Tab(ctx context.Context, tab state.TabState, decision resolver.Decision) {
@@ -143,6 +156,29 @@ func (p *Pass) Agent(ctx context.Context, paneID, current string, decision resol
 	}
 
 	p.apply(ctx, claims, sighting{id: paneID, current: current, desired: decision.Name}, decision)
+}
+
+// Workspace gives a workspace the name chosen for it, on the terms Tab gives a
+// tab its. Herdr labels a workspace nobody named after a directory in it, so a
+// label found among folders is nobody's: folders are the names of the
+// directories its panes are in and of the repositories holding them.
+func (p *Pass) Workspace(
+	ctx context.Context,
+	id, current string,
+	folders []string,
+	decision resolver.Decision,
+) {
+	claims := p.labels.workspaces
+	if claims.isLocked(id) {
+		return
+	}
+
+	p.apply(ctx, claims, sighting{
+		id:       id,
+		current:  current,
+		desired:  decision.Name,
+		defaults: folders,
+	}, decision)
 }
 
 // Settle ends a pass that saw everything the session holds. A pass cut short
@@ -241,6 +277,15 @@ var (
 		gone:              herdr.CodeAgentNotFound,
 		followsMoves:      true,
 		claimsFirstSights: true,
+	}
+	// A workspace keeps the label it is given for good: Herdr stops deriving it
+	// from the workspace's directory and has no call that hands it back. Labels
+	// present on the first poll are renamed, as a tab's are, which is also what
+	// clears names a previous tool left frozen.
+	workspaceKind = kind{
+		noun:   "workspace",
+		rename: herdr.RenameWorkspace,
+		gone:   herdr.CodeWorkspaceNotFound,
 	}
 )
 

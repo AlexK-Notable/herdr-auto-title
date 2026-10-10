@@ -54,6 +54,8 @@ type App struct {
 	reads    *reads.Reader
 	// agents chooses each agent's name, and is nil when naming agents is off.
 	agents *namer.Service
+	// spaces names workspaces; it is the same service as agents when both are on.
+	spaces *namer.Service
 	// failures is the run of polls that have failed in a row, which decides
 	// how loudly the next one is reported.
 	failures failureLog
@@ -259,6 +261,10 @@ func (a *App) readAndRename(ctx context.Context, client herdr.Client) error {
 
 	if a.agents != nil {
 		a.nameAgents(ctx, pass, poll, snapshot, tabs)
+	}
+
+	if a.spaces != nil {
+		a.nameWorkspaces(ctx, pass, poll, snapshot, tabs)
 	}
 
 	// The loop checks the deadline only between tabs, so the last tab's panes

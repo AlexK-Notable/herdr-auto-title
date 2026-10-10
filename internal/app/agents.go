@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/kryptamine/herdr-auto-title/internal/claude"
@@ -123,8 +124,15 @@ func (a *App) nameAgent(
 		title = pane.TerminalTitle
 	}
 
-	// Queues a new name when one is due; a later poll applies it.
-	a.agents.Name(key, pane.AgentTurns, namer.Request{
+	// Queues a new name when one is due; a later poll applies it. The prompt
+	// count says when there is something new to name it from, and nothing
+	// typed and no title says there is nothing yet.
+	version := strconv.Itoa(pane.AgentTurns)
+	if pane.AgentTurns == 0 && title == "" {
+		version = ""
+	}
+
+	a.agents.Name(key, version, namer.Request{
 		Agent:   pane.Agent,
 		Dir:     agentDir(pane),
 		Title:   title,
@@ -169,6 +177,16 @@ func agentDir(pane *state.PaneState) string {
 	dir := pane.AgentDir
 	if dir == "" {
 		dir = pane.Dir
+	}
+
+	return homeRelative(dir)
+}
+
+// homeRelative shortens a path under the home directory to the ~/ form a
+// person would recognise.
+func homeRelative(dir string) string {
+	if dir == "" {
+		return ""
 	}
 
 	if home, err := os.UserHomeDir(); err == nil {

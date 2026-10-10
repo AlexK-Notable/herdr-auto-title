@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 )
 
 // claims is what is remembered about one kind of thing Herdr labels. Herdr
@@ -44,6 +46,10 @@ type claimsFile struct {
 	Locked       map[string]string `json:"locked_tabs"`
 	LockedPanes  map[string]string `json:"locked_panes"`
 	LockedAgents map[string]string `json:"locked_agents,omitempty"`
+	// LockedWorkspaces is keyed by workspace id. It is not locked_workspaces,
+	// which an upstream version wrote with locks taken from Herdr's own
+	// relabels, and which must stay ignored.
+	LockedWorkspaces map[string]string `json:"claimed_workspaces,omitempty"`
 }
 
 // isLocked reports whether the user has claimed this one.
@@ -63,6 +69,9 @@ type sighting struct {
 	current   string
 	desired   string
 	byDefault string
+	// defaults are further labels Herdr gives one nobody has claimed: for a
+	// workspace, the name of a directory in it, matched in any case.
+	defaults []string
 }
 
 // verdict is what a poll makes of a label it saw.
@@ -99,7 +108,7 @@ func (l *Labels) settle() {
 
 	l.settled = true
 
-	for _, c := range []*claims{l.tabs, l.panes, l.agents} {
+	for _, c := range []*claims{l.tabs, l.panes, l.agents, l.workspaces} {
 		clear(c.departed)
 	}
 }
@@ -191,7 +200,7 @@ func (c *claims) claimedOnChange(s sighting, previous seenLabels, known, ours bo
 	switch {
 	case ours:
 		return verdictName
-	case s.current == "", s.current == s.byDefault:
+	case s.current == "", s.current == s.byDefault, s.isDefault():
 		// Nobody has named it. A tab can wear either spelling -- clearing a name
 		// empties the label rather than restoring the position, and a position
 		// slides down when a tab to its left closes. A pane has only the empty.
@@ -206,6 +215,13 @@ func (c *claims) claimedOnChange(s sighting, previous seenLabels, known, ours bo
 	}
 
 	return c.claim(s)
+}
+
+// isDefault reports that the label is one Herdr derived from a directory.
+func (s sighting) isDefault() bool {
+	return slices.ContainsFunc(s.defaults, func(d string) bool {
+		return d != "" && strings.EqualFold(d, s.current)
+	})
 }
 
 func (c *claims) claim(s sighting) verdict {
@@ -237,9 +253,10 @@ func (l *Labels) saveLocked() {
 	// encoding/json sorts map keys itself, so the file is diffable already.
 	raw, err := json.MarshalIndent(
 		claimsFile{
-			Locked:       l.tabs.locked,
-			LockedPanes:  l.panes.locked,
-			LockedAgents: l.agents.locked,
+			Locked:           l.tabs.locked,
+			LockedPanes:      l.panes.locked,
+			LockedAgents:     l.agents.locked,
+			LockedWorkspaces: l.workspaces.locked,
 		},
 		"",
 		"  ",

@@ -63,7 +63,7 @@ func (c CLI) Name(ctx context.Context, req Request) (string, error) {
 		"--no-chrome",
 		"--output-format", "json",
 		"--json-schema", schemaJSON(),
-		"--system-prompt", systemPrompt,
+		"--system-prompt", system(req),
 	)
 	cmd.Stdin = strings.NewReader(payload(req))
 	cmd.Env = sealedEnv(os.Environ())
