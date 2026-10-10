@@ -173,11 +173,16 @@ func TestTheCLIBackendReportsAnErrorResult(t *testing.T) {
 func TestTheAPIBackendAsksHaikuForStructuredOutputWithoutThinking(t *testing.T) {
 	t.Parallel()
 
-	var body map[string]any
+	var (
+		body      map[string]any
+		workspace string
+	)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(raw, &body)
+
+		workspace = r.Header.Get("Anthropic-Workspace-Id")
 
 		if r.Header.Get("X-Api-Key") != "sk-test" {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -194,7 +199,10 @@ func TestTheAPIBackendAsksHaikuForStructuredOutputWithoutThinking(t *testing.T) 
 	}))
 	defer server.Close()
 
-	api := NewAPI("sk-test", DefaultModel, option.WithBaseURL(server.URL), option.WithMaxRetries(0))
+	api := NewAPI(
+		"sk-test", DefaultModel, "wrkspc_test",
+		option.WithBaseURL(server.URL), option.WithMaxRetries(0),
+	)
 
 	name, err := api.Name(context.Background(), Request{Agent: "claude", Prompts: []string{"x"}})
 	if err != nil {
@@ -203,6 +211,10 @@ func TestTheAPIBackendAsksHaikuForStructuredOutputWithoutThinking(t *testing.T) 
 
 	if name != "herdr-agent-naming" {
 		t.Errorf("name = %q", name)
+	}
+
+	if workspace != "wrkspc_test" {
+		t.Errorf("workspace header = %q, want wrkspc_test", workspace)
 	}
 
 	if body["model"] != DefaultModel {
@@ -245,6 +257,7 @@ func TestTheAPIBackendReportsAStatusWithoutTheKey(t *testing.T) {
 	_, err := NewAPI(
 		"sk-secret-value",
 		DefaultModel,
+		"",
 		option.WithBaseURL(server.URL),
 		option.WithMaxRetries(0),
 	).

@@ -45,6 +45,10 @@ const (
 	EnvClaudeBin     = "HERDR_AUTO_TITLE_CLAUDE_BIN"
 	EnvAPIKeyCommand = "HERDR_AUTO_TITLE_API_KEY_CMD" //nolint:gosec // a variable name, not a credential
 	EnvAnthropicKey  = "ANTHROPIC_API_KEY"
+	// EnvWorkspace names the workspace an API key not scoped to one bills to.
+	// ANTHROPIC_WORKSPACE_ID, the SDKs' own name for it, is read as well.
+	EnvWorkspace          = "HERDR_AUTO_TITLE_ANTHROPIC_WORKSPACE_ID"
+	EnvAnthropicWorkspace = "ANTHROPIC_WORKSPACE_ID"
 )
 
 // Namer backends: the claude CLI, billed to the subscription it is logged in
@@ -127,6 +131,9 @@ type Config struct {
 	ClaudeBin     string
 	// APIKeyCommand runs, without a shell, to print the API key.
 	APIKeyCommand []string
+	// NamerWorkspace is the workspace an unscoped API key bills to. Not a
+	// secret: a workspace id grants nothing without a key.
+	NamerWorkspace string
 	// AgentNamesPath is where the names chosen are remembered across restarts.
 	AgentNamesPath string
 }
@@ -215,6 +222,13 @@ func loadNamerConfig(cfg *Config, warnings *[]string) {
 	}
 
 	cfg.APIKeyCommand = strings.Fields(os.Getenv(EnvAPIKeyCommand))
+
+	for _, name := range []string{EnvWorkspace, EnvAnthropicWorkspace} {
+		if raw := strings.TrimSpace(os.Getenv(name)); raw != "" {
+			cfg.NamerWorkspace = raw
+			break
+		}
+	}
 }
 
 var errNotNamer = errors.New("is neither " + NamerCLI + " nor " + NamerAPI)

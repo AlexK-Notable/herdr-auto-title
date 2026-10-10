@@ -43,7 +43,7 @@ func NamerBackend(ctx context.Context, cfg Config) (namer.Backend, error) {
 			}
 		}
 
-		return namer.NewAPI(key, cfg.NamerModel), nil
+		return namer.NewAPI(key, cfg.NamerModel, cfg.NamerWorkspace), nil
 	case NamerCLI:
 		return namer.CLI{Binary: cfg.ClaudeBin, Model: cfg.NamerModel}, nil
 	default:
