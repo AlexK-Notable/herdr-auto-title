@@ -85,12 +85,18 @@ func (a *App) nameAgents(
 		}
 
 		session, ok := pane.AgentSession.IDFor(claude.Agent)
-		if !ok {
+		if !ok && (pane.Agent != claude.Agent || pane.TerminalTitle == "") {
 			continue
 		}
 
 		// Judged before the model is asked: a name the user gave is claimed
 		// here, on the first poll that sees it, and never costs a request.
+		if !ok {
+			// No session to key the name by: the pane keys it instead, which a
+			// new agent in the same pane inherits until its session is reported.
+			session = "pane:" + agent.PaneID
+		}
+
 		taken := takenBy(worn, agent.PaneID)
 		pass.Agent(ctx, agent.PaneID, agent.Name, resolver.Decision{
 			Name:   namer.Unique(a.agents.Remembered(session), taken),
@@ -103,11 +109,19 @@ func (a *App) nameAgents(
 
 		poll.Fill(ctx, pane)
 
+		title := pane.AgentAITitle
+		if !ok {
+			// Herdr's integration never reported this session, so there is no
+			// transcript to read: name it once from the title Claude Code shows
+			// in its terminal, which it derived from the user's own prompts.
+			title = pane.TerminalTitle
+		}
+
 		// Queues a new name when one is due; a later poll applies it.
 		a.agents.Name(session, pane.AgentTurns, namer.Request{
 			Agent:   pane.Agent,
 			Dir:     agentDir(pane),
-			Title:   pane.AgentAITitle,
+			Title:   title,
 			Prompts: pane.AgentPrompts,
 			Current: agent.Name,
 			Taken:   taken,

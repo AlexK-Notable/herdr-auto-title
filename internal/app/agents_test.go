@@ -101,11 +101,38 @@ func TestAnAgentIsNamedFromWhatTheUserTyped(t *testing.T) {
 	}
 }
 
-func TestAnAgentWithoutAClaudeSessionIsLeftAlone(t *testing.T) {
+func TestAClaudeAgentWithNoSessionIsNamedOnceFromItsTerminalTitle(t *testing.T) {
 	t.Parallel()
 
 	pane := agentPane()
 	pane.AgentSession = nil
+	pane.TerminalTitleStripped = "herdr plugin auto naming survey"
+
+	backend := &cannedNamer{name: "herdr-naming-survey"}
+	h := startNaming(t, herdrtest.New(
+		[]herdr.TabInfo{{TabID: "wE:t1", Label: "1"}},
+		[]herdr.PaneInfo{pane},
+	), backend, stateDir(t))
+
+	pollUntil(t, h, func() bool { return len(h.client.AgentRenames()) > 0 })
+
+	if got := backend.requests()[0].Title; got != "herdr plugin auto naming survey" {
+		t.Errorf("asked with title %q, want the terminal title", got)
+	}
+
+	h.polls(5)
+
+	if n := len(backend.requests()); n != 1 {
+		t.Errorf("asked %d times, want once: no prompts means nothing new to rename for", n)
+	}
+}
+
+func TestAnAgentThatIsNotClaudeIsLeftAlone(t *testing.T) {
+	t.Parallel()
+
+	pane := agentPane()
+	pane.AgentSession = nil
+	pane.Agent = "codex"
 
 	backend := &cannedNamer{name: "anything"}
 	h := startNaming(t, herdrtest.New(
