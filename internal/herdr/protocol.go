@@ -78,6 +78,7 @@ const (
 	MethodTabRename               = "tab.rename"
 	MethodPaneRename              = "pane.rename"
 	MethodAgentRename             = "agent.rename"
+	MethodWorkspaceRename         = "workspace.rename"
 	MethodWorkspaceReportMetadata = "workspace.report_metadata"
 	MethodNotificationShow        = "notification.show"
 )
@@ -94,6 +95,13 @@ type TabRenameParams struct {
 type PaneRenameParams struct {
 	PaneID string `json:"pane_id"`
 	Label  string `json:"label"`
+}
+
+// WorkspaceRenameParams labels a workspace. Herdr keeps the label from then on
+// and no longer derives it from the workspace's directory.
+type WorkspaceRenameParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	Label       string `json:"label"`
 }
 
 // AgentRenameParams names the agent in a pane. Target takes a pane id or a

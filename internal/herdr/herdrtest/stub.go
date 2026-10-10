@@ -40,6 +40,12 @@ type PaneRenameCall struct {
 	Label  string
 }
 
+// WorkspaceRenameCall is one workspace.rename the stub accepted.
+type WorkspaceRenameCall struct {
+	WorkspaceID string
+	Label       string
+}
+
 // AgentRenameCall is one agent.rename the stub accepted.
 type AgentRenameCall struct {
 	PaneID string
@@ -67,6 +73,7 @@ type Client struct {
 	paneRenames      []PaneRenameCall
 	agentNames       map[string]string
 	agentRenames     []AgentRenameCall
+	workspaceRenames []WorkspaceRenameCall
 	workspaceReports []WorkspaceReportCall
 	renameErr        error
 	reportErr        error
@@ -160,6 +167,26 @@ func (s *Client) SetAgentName(paneID, name string) {
 	}
 
 	s.agentNames[paneID] = name
+}
+
+func (s *Client) WorkspaceRenames() []WorkspaceRenameCall {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return slices.Clone(s.workspaceRenames)
+}
+
+// RenameWorkspaceAsUser changes a workspace's label the way a person does,
+// without recording it as a call the plugin made.
+func (s *Client) RenameWorkspaceAsUser(id, label string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for i := range s.workspaces {
+		if s.workspaces[i].WorkspaceID == id {
+			s.workspaces[i].Label = label
+		}
+	}
 }
 
 func (s *Client) AgentRenames() []AgentRenameCall {
@@ -290,6 +317,9 @@ func (s *Client) Call(ctx context.Context, method string, params any, result any
 	case herdr.MethodAgentRename:
 		return s.renameAgent(params)
 
+	case herdr.MethodWorkspaceRename:
+		return s.renameWorkspace(params)
+
 	case herdr.MethodWorkspaceReportMetadata:
 		return s.reportMetadata(params)
 
@@ -371,6 +401,27 @@ func (s *Client) renamePane(params any) error {
 	s.paneRenames = append(s.paneRenames, PaneRenameCall(call))
 
 	return nil
+}
+
+func (s *Client) renameWorkspace(params any) error {
+	var call herdr.WorkspaceRenameParams
+	if err := decode(params, &call); err != nil {
+		return err
+	}
+
+	for i := range s.workspaces {
+		if s.workspaces[i].WorkspaceID == call.WorkspaceID {
+			s.workspaces[i].Label = call.Label
+			s.workspaceRenames = append(s.workspaceRenames, WorkspaceRenameCall(call))
+
+			return nil
+		}
+	}
+
+	return &herdr.APIError{
+		Code:    herdr.CodeWorkspaceNotFound,
+		Message: "workspace " + call.WorkspaceID + " not found",
+	}
 }
 
 // agents lists every pane holding an agent, in pane order, as Herdr does.

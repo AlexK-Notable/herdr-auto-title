@@ -187,6 +187,17 @@ func RenamePane(ctx context.Context, c Client, paneID, label string) error {
 	return c.Call(ctx, MethodPaneRename, PaneRenameParams{PaneID: paneID, Label: label}, nil)
 }
 
+// RenameWorkspace labels a workspace. The label is kept until renamed again:
+// Herdr has no call that hands a workspace back to its derived label.
+func RenameWorkspace(ctx context.Context, c Client, workspaceID, label string) error {
+	return c.Call(
+		ctx,
+		MethodWorkspaceRename,
+		WorkspaceRenameParams{WorkspaceID: workspaceID, Label: label},
+		nil,
+	)
+}
+
 // RenameAgent names the agent in a pane, which is what the sidebar's agent
 // token shows and what `herdr agent` commands take as a target.
 func RenameAgent(ctx context.Context, c Client, paneID, name string) error {
