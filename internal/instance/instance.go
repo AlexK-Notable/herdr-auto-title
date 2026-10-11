@@ -36,6 +36,25 @@ func File(dir, socket string) string {
 	return filepath.Join(dir, "instances", hex.EncodeToString(sum[:8])+".json")
 }
 
+// Inbox names the directory requests for the session behind socket are left
+// in, beside its claim and from the same hash: workspace ids repeat across
+// sessions, so a shared inbox would deliver to the wrong one.
+func Inbox(dir, socket string) string {
+	file := File(dir, socket)
+	if file == "" {
+		return ""
+	}
+
+	return strings.TrimSuffix(file, filepath.Ext(file)) + ".inbox"
+}
+
+// Running reports whether a live instance holds the session behind socket.
+func Running(dir, socket string) bool {
+	file := File(dir, socket)
+
+	return file != "" && holder(file) != 0
+}
+
 // marker names the ready marker beside a claim. It is a file of its own so
 // that marking ready never writes over a claim taken in the meantime.
 func marker(path string) string {

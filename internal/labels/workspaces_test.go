@@ -115,3 +115,43 @@ func TestAWorkspaceLockSurvivesARestart(t *testing.T) {
 
 	wantWorkspaceRenames(t, client, "desktop config")
 }
+
+func TestAReleasedWorkspaceIsNotClaimedAgainByItsOwnLabel(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "manual-names.json")
+	client := workspaceSession("dashboard")
+	first := load(path)
+
+	nameWorkspace(t, first, client, "dashboard charts")
+	client.RenameWorkspaceAsUser(theWorkspace, "Quarterly Review")
+	nameWorkspace(t, first, client, "dashboard charts")
+
+	// A restarted instance loads the lock and skips the workspace, so it never
+	// sees its label: the release must stand in for that sighting.
+	l := load(path)
+	nameWorkspace(t, l, client, "dashboard charts")
+
+	if !l.WorkspaceClaimed(theWorkspace, "Quarterly Review") {
+		t.Fatal("the user's label was not claimed")
+	}
+
+	if !l.ReleaseWorkspace(theWorkspace) || l.ReleaseWorkspace(theWorkspace) {
+		t.Fatal("release should report the lock once")
+	}
+
+	if load(path).WorkspaceClaimed(theWorkspace, "Quarterly Review") {
+		t.Error("the released lock came back from disk")
+	}
+
+	for range 3 {
+		nameWorkspace(t, l, client, "dashboard charts")
+	}
+
+	if l.WorkspaceClaimed(theWorkspace, "dashboard charts") ||
+		l.WorkspaceClaimed(theWorkspace, "Quarterly Review") {
+		t.Fatal("the released workspace was claimed again")
+	}
+
+	wantWorkspaceRenames(t, client, "dashboard charts", "dashboard charts")
+}

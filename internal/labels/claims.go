@@ -274,3 +274,40 @@ func (l *Labels) saveLocked() {
 		_ = os.Remove(tmp)
 	}
 }
+
+// ReleaseWorkspace hands a workspace back to Auto Title: its lock goes, and
+// the label it wears is recorded as seen, so the next poll does not read the
+// user's own label as a new rename and claim it again. It reports whether
+// there was a lock.
+func (l *Labels) ReleaseWorkspace(id string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	c := l.workspaces
+
+	label, locked := c.locked[id]
+	if !locked {
+		return false
+	}
+
+	delete(c.locked, id)
+
+	seen := c.seen[id]
+	seen.current = label
+	c.seen[id] = seen
+
+	l.saveLocked()
+
+	return true
+}
+
+// WorkspaceClaimed reports whether the user claimed the workspace and it still
+// wears the label it had then, which is what keeps a lock alive.
+func (l *Labels) WorkspaceClaimed(id, label string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	locked, ok := l.workspaces.locked[id]
+
+	return ok && locked == label
+}

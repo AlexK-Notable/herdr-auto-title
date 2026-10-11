@@ -162,6 +162,20 @@ Two limits. The first upgrade from a version without this action still needs
 `herdr server stop`, because the instance already running does not know to
 leave. On Windows the action needs Herdr 0.9.0 or newer.
 
+## Workspace commands
+
+These talk to the Auto Title running in the session they are started in:
+
+```sh
+herdr-auto-title panel workspaces            # JSON: id, label and who named each
+herdr-auto-title workspace rename-now <id>   # ask for a fresh name soon
+herdr-auto-title workspace release <id>      # hand a workspace you named back
+```
+
+Each prints a JSON message (`{"ok": true, "message": "..."}`) and exits `1` when
+it could not do what was asked. `rename-now` leaves a workspace you named alone;
+release it first.
+
 ## Documentation
 
 - [Architecture](docs/architecture/): how the plugin works and why.

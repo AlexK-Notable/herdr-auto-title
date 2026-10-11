@@ -64,6 +64,9 @@ type App struct {
 	// an instance of its own, and this one leaves rather than double it.
 	server   string
 	instance Instance
+	// inbox is where the command line leaves requests for this session; empty
+	// takes none.
+	inbox string
 }
 
 // New builds the application. The client belongs to Run rather than to the
@@ -243,6 +246,8 @@ func (a *App) readAndRename(ctx context.Context, client herdr.Client) error {
 
 	drew := a.changes.Observe(snapshot.Panes)
 	pass := a.labels.Pass(client, snapshot)
+
+	a.serveInbox(pass)
 
 	tabs := a.tabsIn(snapshot)
 	poll := a.reads.Poll(client, snapshot.Panes, drew)

@@ -317,6 +317,29 @@ the arguments are fixed, so nothing terminal-derived is run.
 Ctrl+C leaves, its claim behind it naming a pid that is gone and so displacing
 nothing.
 
+## The command line and the inbox
+
+Three subcommands serve Herdr's panel, and print JSON on stdout:
+
+- `herdr-auto-title panel workspaces` lists `{id, label, named_by}` for each
+  workspace; `named_by` is `you` when `claimed_workspaces` in the manual file
+  holds the id with the label the workspace wears now, as `retain` judges it.
+- `herdr-auto-title workspace rename-now <id>` and `workspace release <id>`
+  check the workspace exists and that a live instance holds the session's claim,
+  then leave a request in the inbox. A failure is `{"ok": false, "message": ...}`
+  with exit status 1.
+
+The inbox is a directory beside the session's claim file, named from the same
+socket hash with an `.inbox` suffix: workspace ids such as `w1` repeat across
+sessions, so one shared directory would deliver to the wrong one. A request is
+one JSON file written under a temporary name and renamed into place. Each poll,
+after `Labels.Pass` and before anything is named, drains the directory oldest
+first and removes every file it read, malformed ones included; at most 64 per
+poll. `rename-now` makes the workspace's name due whatever the interval, version
+or backoff say (`namer.Service.Force`) and does nothing to a locked one;
+`release` is described in
+[manual rename protection](./manual-rename-protection.md#handing-a-tab-back).
+
 ## Shutdown
 
 `signal.NotifyContext` in `cmd/herdr-auto-title/main.go` cancels the context on

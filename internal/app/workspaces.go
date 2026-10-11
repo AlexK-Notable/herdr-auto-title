@@ -10,6 +10,7 @@ import (
 
 	"github.com/kryptamine/herdr-auto-title/internal/git"
 	"github.com/kryptamine/herdr-auto-title/internal/herdr"
+	"github.com/kryptamine/herdr-auto-title/internal/inbox"
 	"github.com/kryptamine/herdr-auto-title/internal/labels"
 	"github.com/kryptamine/herdr-auto-title/internal/namer"
 	"github.com/kryptamine/herdr-auto-title/internal/reads"
@@ -27,6 +28,44 @@ func (a *App) WithWorkspaceNamer(service *namer.Service) *App {
 	a.spaces = service
 
 	return a
+}
+
+// WithInbox has the app act on the requests left in dir by the command line.
+func (a *App) WithInbox(dir string) *App {
+	a.inbox = dir
+
+	return a
+}
+
+// serveInbox applies the requests waiting for this session. A locked workspace
+// is the user's: only a release touches it.
+func (a *App) serveInbox(pass *labels.Pass) {
+	if a.inbox == "" {
+		return
+	}
+
+	for _, req := range inbox.Drain(a.inbox) {
+		key := workspaceKeyPrefix + req.WorkspaceID
+
+		switch req.Op {
+		case inbox.OpRelease:
+			if a.labels.ReleaseWorkspace(req.WorkspaceID) {
+				a.log.Info("a workspace was handed back", "workspace_id", req.WorkspaceID)
+			}
+
+			a.forceName(key)
+		case inbox.OpRenameNow:
+			if !pass.WorkspaceLocked(req.WorkspaceID) {
+				a.forceName(key)
+			}
+		}
+	}
+}
+
+func (a *App) forceName(key string) {
+	if a.spaces != nil {
+		a.spaces.Force(key)
+	}
 }
 
 // workspace is what one poll gathered about a workspace.

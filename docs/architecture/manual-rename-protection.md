@@ -151,8 +151,16 @@ entry from `manual-names.json` (or delete the file), and start it again —
 editing the file under a running plugin achieves nothing, because the locks live
 in memory and the file is rewritten from them.
 
-A `reset` subcommand talking to the running process over a control channel of
-its own is specified and not built.
+Workspaces have the way that tabs lack: `herdr-auto-title workspace release <id>`
+leaves a request in the session's inbox (see
+[the poll loop](./poll-loop.md#the-command-line-and-the-inbox)), and the running
+instance drops the lock and persists that. It also records the label the
+workspace wears as already seen. Without that, a restarted instance — which
+skipped the locked workspace and so never saw its label — would meet the
+user's label as a rename made between two polls, and claim it again.
+
+`herdr-auto-title workspace rename-now <id>` asks for a fresh name at once and
+refuses a workspace the user named: only a release touches a lock.
 
 ## Panes are protected the same way, and separately
 

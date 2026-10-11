@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 	"testing"
@@ -9,6 +11,7 @@ import (
 
 	"github.com/kryptamine/herdr-auto-title/internal/herdr"
 	"github.com/kryptamine/herdr-auto-title/internal/herdr/herdrtest"
+	"github.com/kryptamine/herdr-auto-title/internal/labels"
 	"github.com/kryptamine/herdr-auto-title/internal/namer"
 	"github.com/kryptamine/herdr-auto-title/internal/reads/readstest"
 )
@@ -213,5 +216,124 @@ func TestAWorkspaceFingerprintIgnoresLabelsButNotContents(t *testing.T) {
 
 	if fingerprint(namer.Request{Task: namer.TaskWorkspace}) != "" {
 		t.Error("an empty workspace has something to be named from")
+	}
+}
+
+// userNamedWorkspace runs a workspace through its first auto name and then a
+// rename by the user, polling until the user's label is claimed.
+func userNamedWorkspace(t *testing.T, h *harness, client *herdrtest.Client) {
+	t.Helper()
+
+	pollUntil(t, h, func() bool { return len(client.WorkspaceRenames()) > 0 })
+
+	client.RenameWorkspaceAsUser("wE", "Quarterly Review")
+	pollUntil(t, h, func() bool { return h.app.labels.WorkspaceClaimed("wE", "Quarterly Review") })
+}
+
+func TestAReleasedWorkspaceIsNamedAgainAndNotClaimedBackFromItsLabel(t *testing.T) {
+	t.Parallel()
+
+	client := workspaceSession("dashboard")
+	backend := &taskNamer{agent: "dashboard-charts", workspace: "Dashboard Chart Work Today"}
+	h := startWorkspaceNamingEvery(t, client, backend, time.Nanosecond)
+	inbox := t.TempDir()
+	h.app.WithInbox(inbox)
+
+	// The user's claim is on disk from an earlier run, so this instance has
+	// never seen the label it guards.
+	manual := filepath.Join(t.TempDir(), "manual-names.json")
+	if err := os.WriteFile(manual,
+		[]byte(`{"claimed_workspaces":{"wE":"Quarterly Review"}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	h.app.labels = labels.Load(manual, discardLogger())
+
+	client.RenameWorkspaceAsUser("wE", "Quarterly Review")
+	h.polls(3)
+
+	if !h.app.labels.WorkspaceClaimed("wE", "Quarterly Review") ||
+		len(client.WorkspaceRenames()) != 0 {
+		t.Fatal("the loaded claim was not honoured")
+	}
+
+	if err := sendRequest(inbox, "release", "wE"); err != nil {
+		t.Fatal(err)
+	}
+
+	pollUntil(t, h, func() bool { return len(client.WorkspaceRenames()) > 0 })
+	h.polls(5)
+
+	renames := client.WorkspaceRenames()
+	if len(renames) != 1 || renames[0].Label != "dashboard chart work" {
+		t.Errorf("renames = %+v, want the auto name put back once", renames)
+	}
+
+	if h.app.labels.WorkspaceClaimed("wE", "Quarterly Review") ||
+		h.app.labels.WorkspaceClaimed("wE", "dashboard chart work") {
+		t.Error("the released workspace was claimed again")
+	}
+}
+
+func TestRenameNowAsksAgainAboutAWorkspaceTheIntervalWouldLeaveAlone(t *testing.T) {
+	t.Parallel()
+
+	client := workspaceSession("dashboard")
+	backend := &taskNamer{agent: "dashboard-charts", workspace: "Dashboard Chart Work Today"}
+	h := startWorkspaceNaming(t, client, backend) // the default five minutes
+	inbox := t.TempDir()
+	h.app.WithInbox(inbox)
+
+	pollUntil(t, h, func() bool { return len(client.WorkspaceRenames()) > 0 })
+
+	backend.mu.Lock()
+	backend.workspace = "Release Notes Drafting"
+	backend.mu.Unlock()
+
+	h.polls(3)
+
+	if len(client.WorkspaceRenames()) != 1 {
+		t.Fatal("renamed inside the interval without being asked")
+	}
+
+	if err := sendRequest(inbox, "rename-now", "wE"); err != nil {
+		t.Fatal(err)
+	}
+
+	pollUntil(t, h, func() bool { return len(client.WorkspaceRenames()) > 1 })
+
+	if got := client.WorkspaceRenames()[1].Label; got != "release notes drafting" {
+		t.Errorf("renamed to %q, want the fresh name", got)
+	}
+}
+
+func TestRenameNowLeavesAWorkspaceTheUserNamedAlone(t *testing.T) {
+	t.Parallel()
+
+	client := workspaceSession("notes")
+	backend := &taskNamer{agent: "dashboard-charts", workspace: "Dashboard Chart Work Today"}
+	h := startWorkspaceNaming(t, client, backend)
+	inbox := t.TempDir()
+	h.app.WithInbox(inbox)
+
+	userNamedWorkspace(t, h, client)
+
+	asked := len(backend.workspaceRequests())
+
+	if err := sendRequest(inbox, "rename-now", "wE"); err != nil {
+		t.Fatal(err)
+	}
+
+	h.polls(3)
+	time.Sleep(20 * time.Millisecond)
+	h.polls(2)
+
+	if len(client.WorkspaceRenames()) != 1 || len(backend.workspaceRequests()) != asked {
+		t.Errorf("renames %v, asks %d -> %d: the user's name was touched",
+			client.WorkspaceRenames(), asked, len(backend.workspaceRequests()))
+	}
+
+	if !h.app.labels.WorkspaceClaimed("wE", "Quarterly Review") {
+		t.Error("the user's lock was lost")
 	}
 }

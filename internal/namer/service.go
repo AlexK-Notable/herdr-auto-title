@@ -77,6 +77,9 @@ type entry struct {
 
 	failures int
 	retryAt  time.Time
+	// forced makes the next Name call ask whatever the interval, the version
+	// or a backoff say.
+	forced bool
 }
 
 type job struct {
@@ -128,8 +131,8 @@ func (s *Service) Name(key, version string, req Request) string {
 	defer s.mu.Unlock()
 
 	e := s.entries[key]
-	if s.due(e, version, req.Task) {
-		s.enqueue(key, version, req)
+	if s.due(e, version, req.Task) && s.enqueue(key, version, req) && e != nil {
+		e.forced = false
 	}
 
 	if e == nil {
@@ -137,6 +140,17 @@ func (s *Service) Name(key, version string, req Request) string {
 	}
 
 	return e.Name
+}
+
+// Force makes the name kept under key due on the next Name call, however
+// recently it was chosen. A key never named is due already.
+func (s *Service) Force(key string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if e := s.entries[key]; e != nil {
+		e.forced = true
+	}
 }
 
 // Backend names the backend in use, for logs.
@@ -175,7 +189,7 @@ func (s *Service) due(e *entry, version string, task Task) bool {
 	now := s.now()
 
 	switch {
-	case e == nil:
+	case e == nil, e.forced:
 		return true
 	case now.Before(e.retryAt):
 		return false
@@ -195,16 +209,19 @@ func (s *Service) intervalFor(task Task) time.Duration {
 	return s.interval
 }
 
-func (s *Service) enqueue(session, version string, req Request) {
+// enqueue reports whether the request was queued.
+func (s *Service) enqueue(session, version string, req Request) bool {
 	if _, waiting := s.pending[session]; waiting {
-		return
+		return false
 	}
 
 	select {
 	case s.queue <- job{session: session, version: version, req: req}:
 		s.pending[session] = struct{}{}
+		return true
 	default:
 		// Full: the next poll asks again.
+		return false
 	}
 }
 

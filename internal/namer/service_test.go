@@ -204,3 +204,66 @@ func TestNamesSurviveARestart(t *testing.T) {
 		t.Errorf("a restart asked again: calls = %d", b.count())
 	}
 }
+
+func TestAForcedNameIsAskedForAtOnceThroughIntervalAndBackoff(t *testing.T) {
+	t.Parallel()
+
+	b := &fakeBackend{names: []string{"first", "second", "third"}}
+	s, c := newService(b, "")
+	s.Name(sess, "1", Request{})
+	drain(s)
+
+	// Same inputs, same minute: nothing would be asked without the force.
+	s.Name(sess, "1", Request{})
+	drain(s)
+
+	if b.count() != 1 {
+		t.Fatalf("calls = %d before the force, want 1", b.count())
+	}
+
+	s.Force(sess)
+	s.Name(sess, "1", Request{})
+	drain(s)
+
+	if got := s.Remembered(sess); got != "second" {
+		t.Errorf("after the force: %q, want second", got)
+	}
+
+	// A failure puts the key in backoff, which a force also overrides, once.
+	b.err = errors.New("rate limited")
+	c.t = c.t.Add(3 * time.Minute)
+
+	s.Name(sess, "2", Request{})
+	drain(s)
+
+	b.err = nil
+
+	s.Force(sess)
+	s.Name(sess, "2", Request{})
+	drain(s)
+
+	if got := s.Remembered(sess); got != "third" {
+		t.Errorf("after the force in backoff: %q, want third", got)
+	}
+
+	s.Name(sess, "2", Request{})
+	drain(s)
+
+	if b.count() != 4 {
+		t.Errorf("calls = %d, want 4: a force is spent once asked", b.count())
+	}
+}
+
+func TestForcingAKeyNeverNamedChangesNothing(t *testing.T) {
+	t.Parallel()
+
+	b := &fakeBackend{names: []string{"x"}}
+	s, _ := newService(b, "")
+	s.Force(sess)
+	s.Name(sess, "", Request{})
+	drain(s)
+
+	if b.count() != 0 {
+		t.Errorf("calls = %d, want 0: there is nothing to name from", b.count())
+	}
+}

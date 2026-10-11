@@ -13,6 +13,7 @@ import (
 
 	"github.com/kryptamine/herdr-auto-title/internal/herdr"
 	"github.com/kryptamine/herdr-auto-title/internal/herdr/herdrtest"
+	"github.com/kryptamine/herdr-auto-title/internal/inbox"
 	"github.com/kryptamine/herdr-auto-title/internal/reads/readstest"
 	"github.com/kryptamine/herdr-auto-title/internal/resolver"
 	"github.com/kryptamine/herdr-auto-title/internal/state"
@@ -1631,4 +1632,9 @@ func TestResolversKeepAPaneInTheHomeFromNamingATab(t *testing.T) {
 	if got := titles.Resolve(tab).Name; got != resolver.GenericFallback {
 		t.Errorf("tab named %q, want %q", got, resolver.GenericFallback)
 	}
+}
+
+// sendRequest leaves a request in an inbox, as the command line does.
+func sendRequest(dir, op, workspaceID string) error {
+	return inbox.Send(dir, inbox.Request{Op: op, WorkspaceID: workspaceID})
 }

@@ -14,8 +14,10 @@ import (
 
 	"github.com/kryptamine/herdr-auto-title/internal/app"
 	"github.com/kryptamine/herdr-auto-title/internal/herdr"
+	"github.com/kryptamine/herdr-auto-title/internal/inbox"
 	"github.com/kryptamine/herdr-auto-title/internal/instance"
 	"github.com/kryptamine/herdr-auto-title/internal/namer"
+	"github.com/kryptamine/herdr-auto-title/internal/panel"
 )
 
 func main() {
@@ -26,14 +28,52 @@ func main() {
 		err = run()
 	case len(os.Args) == 2 && os.Args[1] == "restart":
 		err = restart()
+	case len(os.Args) == 3 && os.Args[1] == "panel" && os.Args[2] == "workspaces":
+		os.Exit(panelCommand(func(ctx context.Context, env panel.Env) int {
+			return panel.Workspaces(ctx, os.Stdout, env)
+		}))
+	case len(os.Args) == 4 && os.Args[1] == "workspace" && workspaceOps[os.Args[2]]:
+		op, id := os.Args[2], os.Args[3]
+
+		os.Exit(panelCommand(func(ctx context.Context, env panel.Env) int {
+			return panel.Act(ctx, os.Stdout, env, op, id)
+		}))
 	default:
-		err = errors.New("usage: herdr-auto-title [restart]")
+		err = errors.New(usage)
 	}
 
 	if err != nil {
 		slog.Error("auto title stopped", "error", err)
 		os.Exit(1)
 	}
+}
+
+const usage = "usage: herdr-auto-title [restart | panel workspaces | " +
+	"workspace rename-now <id> | workspace release <id>]"
+
+// workspaceOps are the requests `workspace` takes, which are the inbox's.
+var workspaceOps = map[string]bool{inbox.OpRenameNow: true, inbox.OpRelease: true}
+
+// panelCommand runs one panel command against the session this process was
+// started in, and returns its exit status. It prints no log: the panel shows
+// stdout, and a failure is a JSON message there.
+func panelCommand(command func(context.Context, panel.Env) int) int {
+	cfg, _ := app.LoadConfig()
+
+	client, err := herdr.New()
+	if err != nil {
+		return panel.Fail(os.Stdout, "not running inside a Herdr session")
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	return command(ctx, panel.Env{
+		Client:     client,
+		Socket:     client.Path(),
+		StateDir:   app.StateDir(),
+		ManualPath: cfg.ManualPath,
+	})
 }
 
 // setup reads the configuration, makes a logger at the level it asks for, and
@@ -89,7 +129,8 @@ func run() error {
 	}
 
 	titles, panes, topics := app.Resolvers(cfg)
-	auto := app.New(cfg, log, titles, panes, topics, claim)
+	auto := app.New(cfg, log, titles, panes, topics, claim).
+		WithInbox(instance.Inbox(app.StateDir(), client.Path()))
 
 	if service := modelNamer(ctx, cfg, log); service != nil {
 		go service.Run(ctx)

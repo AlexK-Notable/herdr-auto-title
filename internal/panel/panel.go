@@ -1,0 +1,133 @@
+// Package panel is the command line behind Herdr's panel: it lists the
+// session's workspaces with who named them, and hands the running instance a
+// request about one. Everything it prints is a JSON object or array.
+package panel
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"log/slog"
+	"time"
+
+	"github.com/kryptamine/herdr-auto-title/internal/herdr"
+	"github.com/kryptamine/herdr-auto-title/internal/inbox"
+	"github.com/kryptamine/herdr-auto-title/internal/instance"
+	"github.com/kryptamine/herdr-auto-title/internal/labels"
+)
+
+// timeout bounds the one snapshot a command reads.
+const timeout = 5 * time.Second
+
+// Env is what a command needs to know about the session it runs in.
+type Env struct {
+	Client herdr.Client
+	// Socket, StateDir and ManualPath name the session's claim and inbox, and
+	// the file holding the workspaces the user named.
+	Socket     string
+	StateDir   string
+	ManualPath string
+}
+
+type workspace struct {
+	ID      string `json:"id"`
+	Label   string `json:"label"`
+	NamedBy string `json:"named_by"`
+}
+
+type result struct {
+	OK      bool   `json:"ok"`
+	Message string `json:"message"`
+}
+
+// Fail prints a failure the panel shows, and returns the exit status.
+func Fail(out io.Writer, message string) int {
+	return emit(out, result{Message: message}, 1)
+}
+
+// Workspaces prints each workspace of the session as {id, label, named_by},
+// named_by being "you" for one the user claimed and "auto-title" otherwise.
+func Workspaces(ctx context.Context, out io.Writer, env Env) int {
+	snapshot, ok := read(ctx, env)
+	if !ok {
+		return Fail(out, unreachable)
+	}
+
+	locks := labels.Load(env.ManualPath, slog.New(slog.DiscardHandler))
+	list := make([]workspace, 0, len(snapshot.Workspaces))
+
+	for _, ws := range snapshot.Workspaces {
+		by := "auto-title"
+		if locks.WorkspaceClaimed(ws.WorkspaceID, ws.Label) {
+			by = "you"
+		}
+
+		list = append(list, workspace{ID: ws.WorkspaceID, Label: ws.Label, NamedBy: by})
+	}
+
+	return emit(out, list, 0)
+}
+
+// Act asks the running instance to do op (an inbox operation) to workspace id,
+// and prints what became of the request.
+func Act(ctx context.Context, out io.Writer, env Env, op, id string) int {
+	snapshot, ok := read(ctx, env)
+	if !ok {
+		return Fail(out, unreachable)
+	}
+
+	label, found := "", false
+
+	for _, ws := range snapshot.Workspaces {
+		if ws.WorkspaceID == id {
+			label, found = ws.Label, true
+		}
+	}
+
+	if !found {
+		return Fail(out, "no workspace "+id)
+	}
+
+	if !instance.Running(env.StateDir, env.Socket) {
+		return Fail(out, "Auto Title is not running in this session")
+	}
+
+	locks := labels.Load(env.ManualPath, slog.New(slog.DiscardHandler))
+	if op == inbox.OpRenameNow && locks.WorkspaceClaimed(id, label) {
+		return Fail(out, label+" was named by you; hand it back first")
+	}
+
+	err := inbox.Send(
+		instance.Inbox(env.StateDir, env.Socket),
+		inbox.Request{Op: op, WorkspaceID: id},
+	)
+	if err != nil {
+		return Fail(out, "could not reach Auto Title")
+	}
+
+	message := label + ": renaming soon"
+	if op == inbox.OpRelease {
+		message = label + ": handed back to Auto Title"
+	}
+
+	return emit(out, result{OK: true, Message: message}, 0)
+}
+
+const unreachable = "could not read the Herdr session"
+
+func read(ctx context.Context, env Env) (herdr.Snapshot, bool) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	snapshot, err := herdr.SessionSnapshot(ctx, env.Client)
+
+	return snapshot, err == nil
+}
+
+func emit(out io.Writer, value any, status int) int {
+	if err := json.NewEncoder(out).Encode(value); err != nil {
+		return 1
+	}
+
+	return status
+}
