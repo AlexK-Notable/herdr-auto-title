@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -405,5 +406,17 @@ func TestTakeReportsAnInstanceThatStays(t *testing.T) {
 
 	if _, stayed, _ := Take(context.Background(), path, 200*time.Millisecond); stayed != old {
 		t.Errorf("stayed = %d, want the instance %d that did not leave", stayed, old)
+	}
+}
+
+func TestInstanceEnvDropsWhatAPanelAdds(t *testing.T) {
+	t.Parallel()
+
+	got := instanceEnv([]string{
+		"PATH=/bin", "PANEL_VIA=popup", "PANEL_FIELD_X=1",
+		"HERDR_AUTO_TITLE_CONFIG_FILE=/c", "HERDR_AUTO_TITLE_DEBUG=1",
+	})
+	if !slices.Equal(got, []string{"PATH=/bin", "HERDR_AUTO_TITLE_DEBUG=1"}) {
+		t.Errorf("env = %q", got)
 	}
 }

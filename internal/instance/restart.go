@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
+	"strings"
 	"time"
 )
 
@@ -102,6 +104,17 @@ func pending(path string, pid, old int) error {
 	}
 }
 
+// instanceEnv is the environment a new instance gets: this process's, less
+// what a settings panel adds to the commands it runs (PANEL_*, and the
+// configuration file it was told to edit), which the instance would
+// otherwise hand to everything it starts.
+func instanceEnv(environ []string) []string {
+	return slices.DeleteFunc(slices.Clone(environ), func(kv string) bool {
+		return strings.HasPrefix(kv, "PANEL_") ||
+			strings.HasPrefix(kv, "HERDR_AUTO_TITLE_CONFIG_FILE=")
+	})
+}
+
 // start runs exe with no arguments, holding nothing of this process: stdio on
 // the null device, because Herdr reads an action's output to its end, and no
 // terminal or process group, so the instance outlives the action that made it.
@@ -115,7 +128,7 @@ func start(exe string) (*os.Process, error) {
 	// The program is this binary's own path and the arguments are fixed, so
 	// nothing terminal-derived is run here.
 	return os.StartProcess(exe, []string{exe}, &os.ProcAttr{
-		Env:   os.Environ(),
+		Env:   instanceEnv(os.Environ()),
 		Files: []*os.File{null, null, null},
 		Sys:   detached(),
 	})
