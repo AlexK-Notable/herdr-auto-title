@@ -17,6 +17,13 @@
       "commitMessageTopic": "golangci-lint"
     },
     {
+      "description": "herdr-panel is the one module in panel/go.mod that was chosen; its tool directive marks it indirect.",
+      "matchFileNames": ["panel/go.mod"],
+      "matchPackageNames": ["github.com/AlexK-Notable/herdr-panel"],
+      "enabled": true,
+      "commitMessageTopic": "herdr-panel"
+    },
+    {
       "description": "Everything arrives together, minors in one pull request and majors in another.",
       "matchUpdateTypes": ["major", "minor", "patch", "digest"],
       "groupName": "dependencies"

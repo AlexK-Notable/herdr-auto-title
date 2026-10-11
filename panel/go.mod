@@ -1,10 +1,11 @@
-// The settings panel's renderer only: herdr-panel, pinned here. It needs a
-// newer Go than the plugin; as its own module, built with `go build -C panel`,
-// it makes the go command fetch that Go when the installed one is older, and
-// the main module keeps building on Go 1.24 (see herdr-plugin.toml).
+// The settings panel's renderer, herdr-panel, pinned. It needs Go 1.26, so it is a
+// module of its own: `go build -C panel` fetches that Go when the installed one is
+// older, and the main module keeps building on Go 1.24 (see herdr-plugin.toml).
 module github.com/kryptamine/herdr-auto-title/panel
 
 go 1.26.0
+
+toolchain go1.26.9
 
 tool github.com/AlexK-Notable/herdr-panel/cmd/herdr-panel
 
