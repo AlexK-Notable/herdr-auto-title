@@ -40,6 +40,12 @@ func ownPath(name string) string {
 	return filepath.Join(dirs[len(dirs)-1], ownDir, name)
 }
 
+// ConfigPath is the configuration file Auto Title reads, or would create:
+// the settings panel edits this one, so it never guesses a path of its own.
+func ConfigPath() string {
+	return ownPath(ConfigFile)
+}
+
 // StateDir is where Auto Title keeps what it writes for itself alone, or empty
 // when there is no platform directory. It is always the platform's, never the
 // first match ownPath would take, so every instance agrees on it.

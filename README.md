@@ -162,6 +162,34 @@ Two limits. The first upgrade from a version without this action still needs
 `herdr server stop`, because the instance already running does not know to
 leave. On Windows the action needs Herdr 0.9.0 or newer.
 
+## Settings panel
+
+On Linux and macOS, a popup edits the settings above and lists your
+workspaces, with who named each and buttons to rename one now or hand it back:
+
+```sh
+herdr plugin action invoke herdr.auto-title.settings
+```
+
+or on a key, in Herdr's `config.toml`:
+
+```toml
+[[keys.command]]
+key = "prefix+A"
+type = "plugin_action"
+command = "herdr.auto-title.settings"
+description = "auto title settings"
+```
+
+Saving writes `config.env` (the file Auto Title found, by the order above),
+changing only the lines you edited, and restarts Auto Title so the change takes
+effect. A setting also given in the environment Herdr starts the plugin with
+wins over the file, as always.
+
+The panel is drawn by [herdr-panel](https://github.com/AlexK-Notable/herdr-panel),
+which `make panel` builds into `bin/` from a checkout next to this one
+(`HERDR_PANEL_DIR` names another).
+
 ## Workspace commands
 
 These talk to the Auto Title running in the session they are started in:

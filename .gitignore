@@ -1,6 +1,8 @@
 # Compiled binary
 /herdr-auto-title
 /herdr-auto-title.exe
+# The settings panel's binary (make panel)
+/bin/
 
 # Go build and test artifacts
 *.test

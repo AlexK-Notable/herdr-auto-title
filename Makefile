@@ -43,6 +43,15 @@ test-v: ## Tests, verbose
 build: ## Build the binary
 	@go build -o $(BINARY) $(PKG)
 
+# The settings panel's binary, built from a herdr-panel checkout: herdr runs
+# [[build]] only on install, so a linked plugin builds it here.
+HERDR_PANEL_DIR ?= ../herdr-panel
+
+.PHONY: panel
+panel: build ## Build bin/herdr-panel from HERDR_PANEL_DIR (default ../herdr-panel)
+	@test -d "$(HERDR_PANEL_DIR)/cmd/herdr-panel" || { echo "no herdr-panel checkout at $(HERDR_PANEL_DIR)"; exit 1; }
+	@cd "$(HERDR_PANEL_DIR)" && go build -o "$(CURDIR)/bin/herdr-panel" ./cmd/herdr-panel
+
 .PHONY: run
 run: build ## Run in the current Herdr session with DEBUG logging
 	@HERDR_AUTO_TITLE_DEBUG=1 ./$(BINARY)
