@@ -44,11 +44,16 @@ jobs:
           cache-dependency-path: |
             go.sum
             tools/go.sum
+            panel/go.sum
       - name: Formatting
         # `make fmt` rewrites; CI has to fail instead. It lives beside the
         # linter because the formatters are configured in .golangci.yml too.
         run: go tool -modfile=tools/go.mod golangci-lint fmt --diff ./...
       - run: make lint
+      - name: Settings panel
+        # The [[build]] entry Herdr runs for herdr-panel; `./...` does not reach
+        # panel/. Not in the 1.24 leg: GOTOOLCHAIN=local there cannot fetch 1.26.
+        run: go build -C panel -o /dev/null github.com/AlexK-Notable/herdr-panel/cmd/herdr-panel
 
   macos:
     name: macOS
