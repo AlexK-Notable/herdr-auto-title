@@ -129,7 +129,7 @@ a parallel test, and one that reaches the environment through a helper says so
 in a `//nolint:paralleltest`.
 
 The linter lives in `tools/go.mod`, a module of its own, so its dependency tree
-stays out of the plugin's: the main module keeps two dependencies and still
+stays out of the plugin's: the main module keeps three dependencies and still
 builds on Go 1.24, which is what Herdr needs at install time. An error
 swallowed on purpose is dropped with `_ =`, which is what `errcheck` asks
 for; only a `Close` made through `io.Closer` or on a `net.Listener` is

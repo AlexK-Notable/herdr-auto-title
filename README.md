@@ -18,8 +18,10 @@ https://github.com/user-attachments/assets/ada47ba7-cf64-405b-bc07-185dc10ef2ef
 
 ## Install
 
-You need Herdr 0.8.2+ and Go 1.24+ on macOS, Linux or Windows. Herdr builds the
-plugin from source when it installs it.
+You need Herdr 0.8.2+ and Go on macOS, Linux or Windows: Go 1.24+ builds Auto Title, and
+on macOS and Linux its settings panel needs Go 1.26, which the `go` command downloads by
+itself unless toolchain switching is off (`GOTOOLCHAIN=local`, the default on Fedora and
+Alpine). Herdr builds the plugin from source when it installs it.
 
 ```sh
 herdr plugin install kryptamine/herdr-auto-title
