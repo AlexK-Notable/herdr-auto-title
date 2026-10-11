@@ -45,11 +45,14 @@ build: ## Build the binary
 
 # The settings panel's binary, built from a herdr-panel checkout: herdr runs
 # [[build]] only on install, so a linked plugin builds it here.
-HERDR_PANEL_DIR ?= ../herdr-panel
 
 .PHONY: panel
-panel: build ## Build bin/herdr-panel from HERDR_PANEL_DIR (default ../herdr-panel)
+panel: build ## Build bin/herdr-panel: the version panel/go.mod pins, or a checkout in HERDR_PANEL_DIR
+ifdef HERDR_PANEL_DIR
 	@cd "$(HERDR_PANEL_DIR)" && go build -o "$(CURDIR)/bin/herdr-panel" ./cmd/herdr-panel
+else
+	@go build -C panel -o ../bin/herdr-panel github.com/AlexK-Notable/herdr-panel/cmd/herdr-panel
+endif
 
 .PHONY: run
 run: build ## Run in the current Herdr session with DEBUG logging

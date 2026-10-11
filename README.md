@@ -187,8 +187,11 @@ effect. A setting also given in the environment Herdr starts the plugin with
 wins over the file, as always; the panel names any such setting at the top.
 
 The panel is drawn by [herdr-panel](https://github.com/AlexK-Notable/herdr-panel),
-which `make panel` builds into `bin/` from a checkout next to this one
-(`HERDR_PANEL_DIR` names another).
+at the version `panel/go.mod` pins. `herdr plugin install` builds it into
+`bin/`; for a linked checkout, `make panel` does (`HERDR_PANEL_DIR=<checkout>`
+builds from a herdr-panel checkout instead). It needs Go 1.26, which the `go`
+command downloads if yours is older, unless `GOTOOLCHAIN=local`; Auto Title
+itself still builds on Go 1.24.
 
 ## Workspace commands
 

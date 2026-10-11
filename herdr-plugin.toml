@@ -18,6 +18,12 @@ command = ["go", "build", "-o", "herdr-auto-title", "./cmd/herdr-auto-title"]
 platforms = ["windows"]
 command = ["go", "build", "-o", "herdr-auto-title.exe", "./cmd/herdr-auto-title"]
 
+# The settings popup's renderer, herdr-panel, at the version panel/go.mod
+# pins. It needs Go 1.26; an older go command fetches it (GOTOOLCHAIN=auto).
+[[build]]
+platforms = ["linux", "macos"]
+command = ["go", "build", "-C", "panel", "-o", "../bin/herdr-panel", "github.com/AlexK-Notable/herdr-panel/cmd/herdr-panel"]
+
 # A one-shot launch, not a supervised daemon: the process stays alive itself.
 [[startup]]
 platforms = ["linux", "macos"]
