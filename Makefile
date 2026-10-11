@@ -49,7 +49,6 @@ HERDR_PANEL_DIR ?= ../herdr-panel
 
 .PHONY: panel
 panel: build ## Build bin/herdr-panel from HERDR_PANEL_DIR (default ../herdr-panel)
-	@test -d "$(HERDR_PANEL_DIR)/cmd/herdr-panel" || { echo "no herdr-panel checkout at $(HERDR_PANEL_DIR)"; exit 1; }
 	@cd "$(HERDR_PANEL_DIR)" && go build -o "$(CURDIR)/bin/herdr-panel" ./cmd/herdr-panel
 
 .PHONY: run

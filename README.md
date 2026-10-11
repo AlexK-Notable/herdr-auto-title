@@ -168,7 +168,7 @@ On Linux and macOS, a popup edits the settings above and lists your
 workspaces, with who named each and buttons to rename one now or hand it back:
 
 ```sh
-herdr plugin action invoke herdr.auto-title.settings
+herdr plugin action invoke herdr.auto-title.open-settings
 ```
 
 or on a key, in Herdr's `config.toml`:
@@ -177,14 +177,14 @@ or on a key, in Herdr's `config.toml`:
 [[keys.command]]
 key = "prefix+A"
 type = "plugin_action"
-command = "herdr.auto-title.settings"
+command = "herdr.auto-title.open-settings"
 description = "auto title settings"
 ```
 
 Saving writes `config.env` (the file Auto Title found, by the order above),
 changing only the lines you edited, and restarts Auto Title so the change takes
 effect. A setting also given in the environment Herdr starts the plugin with
-wins over the file, as always.
+wins over the file, as always; the panel names any such setting at the top.
 
 The panel is drawn by [herdr-panel](https://github.com/AlexK-Notable/herdr-panel),
 which `make panel` builds into `bin/` from a checkout next to this one

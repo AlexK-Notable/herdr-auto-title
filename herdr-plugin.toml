@@ -27,9 +27,6 @@ command = ["./herdr-auto-title"]
 platforms = ["windows"]
 command = ["./herdr-auto-title.exe"]
 
-# Starts a fresh instance in place of the running one, without a server stop.
-# One entry for every platform: Herdr rejects a second action with this id even
-# for another platform, and Herdr 0.9.0 on Windows finds the `.exe` itself.
 # The settings panel: herdr-panel draws panel.toml in a popup. It runs on
 # Linux and macOS only, and `make panel` builds it for a linked checkout.
 [[panes]]
@@ -42,13 +39,16 @@ height = "70%"
 command = ["./herdr-auto-title", "settings"]
 
 [[actions]]
-id = "settings"
+id = "open-settings"
 title = "Auto Title: settings"
 description = "Open the settings and workspace naming panel"
 contexts = ["global"]
 platforms = ["linux", "macos"]
 command = ["./herdr-auto-title", "settings", "open"]
 
+# Starts a fresh instance in place of the running one, without a server stop.
+# One entry for every platform: Herdr rejects a second action with this id even
+# for another platform, and Herdr 0.9.0 on Windows finds the `.exe` itself.
 [[actions]]
 id = "restart"
 title = "Auto Title: restart"

@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/kryptamine/herdr-auto-title/internal/app"
@@ -41,6 +43,12 @@ func settingsCommand(dir string, environ []string) (argv, env []string, err erro
 
 		return nil, nil, err
 	}
+
+	// An inherited value would win: of two duplicates, a program exec'd with
+	// both reads the first.
+	environ = slices.DeleteFunc(slices.Clone(environ), func(kv string) bool {
+		return strings.HasPrefix(kv, EnvConfigFile+"=")
+	})
 
 	return []string{
 		bin,
@@ -125,4 +133,33 @@ func openSettings() error {
 	_, _ = herdr.ShowNotification(ctx, client, "Auto Title settings did not open", body)
 
 	return err
+}
+
+// envPrefix starts the name of every setting Auto Title reads.
+const envPrefix = "HERDR_AUTO_TITLE_"
+
+// settingsOverrides is a line naming the settings the environment sets,
+// which win over the configuration file, or "" when there are none: the
+// panel shows it, since saving those in the file changes nothing.
+func settingsOverrides(environ []string) string {
+	var keys []string
+
+	for _, kv := range environ {
+		key, _, _ := strings.Cut(kv, "=")
+		if strings.HasPrefix(key, envPrefix) && key != EnvConfigFile {
+			keys = append(keys, key)
+		}
+	}
+
+	if len(keys) == 0 {
+		return ""
+	}
+
+	slices.Sort(keys)
+
+	return "Set by the environment Herdr started Auto Title with, so the file's value is not used: " +
+		strings.Join(
+			keys,
+			", ",
+		)
 }

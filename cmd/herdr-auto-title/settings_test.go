@@ -44,7 +44,9 @@ func TestSettingsCommandPassesTheConfigFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	argv, env, err := settingsCommand(dir, []string{"KEPT=1"})
+	// An inherited value is dropped: exec'd with both, the panel would read
+	// the first, which is the stale one.
+	argv, env, err := settingsCommand(dir, []string{"KEPT=1", EnvConfigFile + "=/stale/config.env"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,5 +60,20 @@ func TestSettingsCommandPassesTheConfigFile(t *testing.T) {
 
 	if !slices.Equal(env, []string{"KEPT=1", EnvConfigFile + "=" + want}) {
 		t.Errorf("env = %q", env)
+	}
+}
+
+func TestSettingsOverridesNamesTheEnvironmentSettings(t *testing.T) {
+	t.Parallel()
+
+	if got := settingsOverrides([]string{"PATH=/bin", EnvConfigFile + "=/x"}); got != "" {
+		t.Errorf("no overrides: %q", got)
+	}
+
+	got := settingsOverrides(
+		[]string{"HERDR_AUTO_TITLE_AGENTS=false", "PATH=/bin", "HERDR_AUTO_TITLE_DEBUG=1"},
+	)
+	if !strings.HasSuffix(got, ": HERDR_AUTO_TITLE_AGENTS, HERDR_AUTO_TITLE_DEBUG") {
+		t.Errorf("overrides: %q", got)
 	}
 }

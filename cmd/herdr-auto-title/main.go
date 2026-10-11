@@ -28,10 +28,12 @@ func main() {
 		err = run()
 	case len(os.Args) == 2 && os.Args[1] == "restart":
 		err = restart()
-	case len(os.Args) == 2 && os.Args[1] == "settings":
+	case len(os.Args) == 2 && os.Args[1] == cmdSettings:
 		err = settings()
-	case len(os.Args) == 3 && os.Args[1] == "settings" && os.Args[2] == "open":
+	case len(os.Args) == 3 && os.Args[1] == cmdSettings && os.Args[2] == "open":
 		err = openSettings()
+	case len(os.Args) == 3 && os.Args[1] == cmdSettings && os.Args[2] == "overrides":
+		fmt.Println(settingsOverrides(os.Environ()))
 	case len(os.Args) == 3 && os.Args[1] == "panel" && os.Args[2] == "workspaces":
 		os.Exit(panelCommand(func(ctx context.Context, env panel.Env) int {
 			return panel.Workspaces(ctx, os.Stdout, env)
@@ -52,7 +54,10 @@ func main() {
 	}
 }
 
-const usage = "usage: herdr-auto-title [restart | settings [open] | panel workspaces | " +
+// cmdSettings is the subcommand that runs, opens or explains the panel.
+const cmdSettings = "settings"
+
+const usage = "usage: herdr-auto-title [restart | settings [open | overrides] | panel workspaces | " +
 	"workspace rename-now <id> | workspace release <id>]"
 
 // workspaceOps are the requests `workspace` takes, which are the inbox's.

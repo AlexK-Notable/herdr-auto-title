@@ -13,6 +13,11 @@ path = "{env.HERDR_AUTO_TITLE_CONFIG_FILE}"
 # takes up to 15 s to leave.
 apply = { run = ["./herdr-auto-title", "restart"], timeout_s = 30 }
 
+# The settings the environment sets: they win over the file.
+[[section]]
+kind = "text"
+source = ["./herdr-auto-title", "settings", "overrides"]
+
 [[section]]
 title = "Titles"
 fields = [
