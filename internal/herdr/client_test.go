@@ -499,3 +499,28 @@ func TestErrorCode(t *testing.T) {
 		t.Errorf("ErrorCode of a plain error = %q, want empty", got)
 	}
 }
+
+func TestOpenPluginPaneAsksForThePopupWithFocus(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t, respondOK)
+
+	if err := OpenPluginPane(
+		context.Background(),
+		srv.client(),
+		"herdr.auto-title",
+		"settings",
+	); err != nil {
+		t.Fatalf("OpenPluginPane: %v", err)
+	}
+
+	seen := srv.seen()
+	if len(seen) != 1 || seen[0].Method != MethodPluginPaneOpen {
+		t.Fatalf("server saw %+v", seen)
+	}
+
+	want := `{"plugin_id":"herdr.auto-title","entrypoint":"settings","focus":true}`
+	if string(seen[0].Params) != want {
+		t.Errorf("params = %s, want %s", seen[0].Params, want)
+	}
+}

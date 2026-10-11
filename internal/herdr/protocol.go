@@ -52,6 +52,9 @@ const (
 	// CodeInvalidAgentName is answered for a name outside
 	// ^[a-z][a-z0-9_-]{0,31}$, which nothing here should ever send.
 	CodeInvalidAgentName = "invalid_agent_name"
+	// CodeUIBusy is answered when a popup is already open: Herdr shows one
+	// at a time.
+	CodeUIBusy = "ui_busy"
 )
 
 // ErrUnanswered marks a call that failed after its request was sent. Herdr
@@ -70,8 +73,9 @@ func ErrorCode(err error) string {
 	return ""
 }
 
-// Method names used by Auto Title: two to read the session, three to act on
-// it, and one to tell the user how a restart went.
+// Method names used by Auto Title: two to read the session, the ones that act
+// on it, one to tell the user how a restart went, and one to open the
+// settings panel.
 const (
 	MethodSessionSnapshot         = "session.snapshot"
 	MethodPaneProcessInfo         = "pane.process_info"
@@ -81,7 +85,16 @@ const (
 	MethodWorkspaceRename         = "workspace.rename"
 	MethodWorkspaceReportMetadata = "workspace.report_metadata"
 	MethodNotificationShow        = "notification.show"
+	MethodPluginPaneOpen          = "plugin.pane.open"
 )
+
+// PluginPaneOpenParams opens one of a plugin's [[panes]] entries. A popup
+// takes its placement and size from the manifest.
+type PluginPaneOpenParams struct {
+	PluginID   string `json:"plugin_id"`
+	Entrypoint string `json:"entrypoint"`
+	Focus      bool   `json:"focus"`
+}
 
 type PaneTarget struct {
 	PaneID string `json:"pane_id"`

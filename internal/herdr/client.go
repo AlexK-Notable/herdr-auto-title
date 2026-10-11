@@ -219,6 +219,13 @@ func ShowNotification(
 	return res, err
 }
 
+// OpenPluginPane opens the plugin's pane entrypoint with the focus, as the
+// manifest places it. A popup already open makes it fail with CodeUIBusy.
+func OpenPluginPane(ctx context.Context, c Client, pluginID, entrypoint string) error {
+	return c.Call(ctx, MethodPluginPaneOpen,
+		PluginPaneOpenParams{PluginID: pluginID, Entrypoint: entrypoint, Focus: true}, nil)
+}
+
 // ReportWorkspaceTopic shows topic as the workspace's `topic` token until ttl
 // runs out, or clears the token when topic is empty. Herdr draws a token where
 // the user's sidebar rows ask for one and never changes the label for it.
