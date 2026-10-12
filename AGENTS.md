@@ -16,6 +16,7 @@ internal/resolver     that state turned into a title, one source at a time
 internal/labels       that title put on, unless the label is the user's own
 internal/claude       what a Claude Code session is about, from its transcript
 internal/git          what a repository has checked out, read from .git
+internal/instance     one Auto Title per session, and the restart handoff
 scripts/              the Python probes
 docs/architecture/    how the plugin works and why
 ```
@@ -138,9 +139,10 @@ is not.
 
 ## Herdr socket API — the traps
 
-The originating specification is wrong on several protocol details. Everything
-here was verified against Herdr 0.8.2, protocol 20. **Probe before assuming
-anything** (`make probe-*`, `scripts/probe.py`).
+The originating specification is wrong on several protocol details, so each
+fact here was probed against a live Herdr; the record below names the version
+it was measured on. **Probe before assuming anything** (`make probe-*`,
+`scripts/probe.py`).
 
 The facts in full — the measured costs, the field inventories, the event kinds,
 what every object carries — are in

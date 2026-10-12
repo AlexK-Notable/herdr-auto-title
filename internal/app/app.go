@@ -281,8 +281,7 @@ func (a *App) readAndRename(ctx context.Context, client herdr.Client) error {
 		return ctx.Err()
 	}
 
-	// Reached only when every tab and pane was seen. Deferring this would settle
-	// after a poll cut short, and what it missed would look new and already named.
+	// Reached only when every tab and pane was seen, so never deferred.
 	pass.Settle()
 
 	if a.topics != nil {
