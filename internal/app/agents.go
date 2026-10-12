@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -123,16 +125,20 @@ func (a *App) nameAgent(
 	title := pane.AgentAITitle
 	if !fromTranscript {
 		// Herdr's integration never reported this session, so there is no
-		// transcript to read: name it once from the title Claude Code shows in
-		// its terminal, which it derived from the user's own prompts.
+		// transcript to read: name it from the title Claude Code shows in its
+		// terminal, which it derived from the user's own prompts.
 		title = pane.TerminalTitle
 	}
 
 	// Queues a new name when one is due; a later poll applies it. The prompt
 	// count says when there is something new to name it from, and nothing
-	// typed and no title says there is nothing yet.
+	// typed and no title says there is nothing yet. Without a transcript the
+	// count never moves, so the title, which follows the task, stands in.
 	version := strconv.Itoa(pane.AgentTurns)
-	if pane.AgentTurns == 0 && title == "" {
+	switch {
+	case !fromTranscript:
+		version = titleVersion(title)
+	case pane.AgentTurns == 0 && title == "":
 		version = ""
 	}
 
@@ -165,6 +171,14 @@ func agentKey(agent herdr.AgentInfo, pane *state.PaneState) (key string, fromTra
 	}
 
 	return "pane:" + agent.PaneID, false, true
+}
+
+// titleVersion stands for the terminal title an agent with no transcript is
+// named from, so a new title is noticed without keeping the title.
+func titleVersion(title string) string {
+	sum := sha256.Sum256([]byte(title))
+
+	return "title:" + hex.EncodeToString(sum[:])[:16]
 }
 
 // takenBy is every name other agents wear, which this one cannot have.

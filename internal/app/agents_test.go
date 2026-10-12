@@ -128,6 +128,42 @@ func TestAClaudeAgentWithNoSessionIsNamedOnceFromItsTerminalTitle(t *testing.T) 
 	}
 }
 
+func TestAClaudeAgentWithNoSessionIsNamedAgainWhenItsTitleChanges(t *testing.T) {
+	t.Parallel()
+
+	pane := agentPane()
+	pane.AgentSession = nil
+	pane.TerminalTitleStripped = "Claude Code"
+
+	client := herdrtest.New([]herdr.TabInfo{{TabID: "wE:t1", Label: "1"}}, []herdr.PaneInfo{pane})
+	backend := &cannedNamer{name: "awaiting-first-task"}
+	h := startConfigured(t, client, transcriptConfig(stateDir(t)))
+	// An interval that has always passed, so only the title decides.
+	service := namer.New(namer.Options{Backend: backend, Interval: time.Nanosecond})
+	h.app.WithAgentNamer(service)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	go service.Run(ctx)
+
+	pollUntil(t, h, func() bool { return len(backend.requests()) == 1 })
+	h.polls(5)
+
+	if n := len(backend.requests()); n != 1 {
+		t.Fatalf("asked %d times before the title changed, want once", n)
+	}
+
+	pane.TerminalTitleStripped = "backup-dash manual verification"
+	client.SetPane(pane)
+
+	pollUntil(t, h, func() bool { return len(backend.requests()) == 2 })
+
+	if got := backend.requests()[1].Title; got != "backup-dash manual verification" {
+		t.Errorf("asked again with title %q, want the new one", got)
+	}
+}
+
 func TestAnAgentThatIsNotClaudeIsLeftAlone(t *testing.T) {
 	t.Parallel()
 
