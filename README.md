@@ -165,6 +165,11 @@ That notification needs Herdr's toasts on. With `[ui.toast] delivery = "off"`
 Herdr answers that it showed the notice, nothing appears, and the outcome is
 left in `herdr plugin log list`.
 
+The instance a restart starts has no terminal to log to, so it logs to
+`herdr-auto-title.log` in the plugin's state directory (`HERDR_PLUGIN_STATE_DIR`,
+`~/.local/state/herdr/plugins/herdr.auto-title` on Linux). Past 5 MiB the file
+starts over, keeping the one before as `herdr-auto-title.log.1`.
+
 Two limits. The first upgrade from a version without this action still needs
 `herdr server stop`, because the instance already running does not know to
 leave. On Windows the action needs Herdr 0.9.0 or newer.

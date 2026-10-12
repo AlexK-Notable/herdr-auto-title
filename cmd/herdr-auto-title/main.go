@@ -112,7 +112,8 @@ func setup() (app.Config, *slog.Logger, *herdr.SocketClient, error) {
 		level = slog.LevelDebug
 	}
 
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
+	out := logOutput(os.Stderr, os.Getenv("HERDR_PLUGIN_STATE_DIR"))
+	log := slog.New(slog.NewTextHandler(out, &slog.HandlerOptions{Level: level}))
 	slog.SetDefault(log)
 
 	for _, warning := range warnings {
