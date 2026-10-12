@@ -170,16 +170,26 @@ func Slug(raw string) string {
 	name = leadingBad.ReplaceAllString(name, "")
 	name = strings.Trim(name, "-")
 
-	if len(name) > MaxName {
-		cut := name[:MaxName]
-		if i := strings.LastIndexByte(cut, '-'); i > 0 {
-			cut = cut[:i]
-		}
+	return fit(name, MaxName)
+}
 
-		name = strings.Trim(cut, "-")
+// fit shortens name to at most limit bytes. It cuts at a hyphen, so no word
+// is split; a single word longer than the limit is cut where it must be.
+func fit(name string, limit int) string {
+	if len(name) <= limit {
+		return name
 	}
 
-	return name
+	if name[limit] == '-' { // the limit falls between two words
+		return strings.Trim(name[:limit], "-")
+	}
+
+	cut := name[:limit]
+	if i := strings.LastIndexByte(cut, '-'); i > 0 {
+		cut = cut[:i]
+	}
+
+	return strings.Trim(cut, "-")
 }
 
 // Unique returns name, or name with the smallest suffix -2, -3, … that no
@@ -201,12 +211,7 @@ func Unique(name string, taken []string) string {
 	for n := 2; ; n++ {
 		suffix := fmt.Sprintf("-%d", n)
 
-		base := name
-		if len(base)+len(suffix) > MaxName {
-			base = strings.TrimRight(base[:MaxName-len(suffix)], "-")
-		}
-
-		if candidate := base + suffix; !contains(used, candidate) {
+		if candidate := fit(name, MaxName-len(suffix)) + suffix; !contains(used, candidate) {
 			return candidate
 		}
 	}

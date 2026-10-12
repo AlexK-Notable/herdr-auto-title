@@ -297,3 +297,22 @@ func TestTheKeyCommandPrintsTheKeyAndNothingElseIsAccepted(t *testing.T) {
 		t.Error("the command's output reached the error")
 	}
 }
+
+func TestUniqueCutsTheBaseAtAWord(t *testing.T) {
+	t.Parallel()
+
+	name := "herdr-plugin-auto-naming-survey"
+	if got := Unique(name, []string{name}); got != "herdr-plugin-auto-naming-2" {
+		t.Errorf("Unique = %q, want herdr-plugin-auto-naming-2", got)
+	}
+}
+
+func TestSlugKeepsAWordThatEndsAtTheLimit(t *testing.T) {
+	t.Parallel()
+
+	// The fourth word ends at exactly 32 characters.
+	in := "aaaaaaa-bbbbbbb-ccccccc-dddddddd-eeee"
+	if got := Slug(in); got != "aaaaaaa-bbbbbbb-ccccccc-dddddddd" {
+		t.Errorf("Slug = %q, want aaaaaaa-bbbbbbb-ccccccc-dddddddd", got)
+	}
+}
