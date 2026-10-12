@@ -44,6 +44,10 @@ fields = [
   { key = "HERDR_AUTO_TITLE_AGENTS", type = "bool", label = "Name agents", default = true },
   { key = "HERDR_AUTO_TITLE_NAMER", type = "choice", label = "Model via", default = "cli",
     choices = [ { value = "cli", label = "claude -p (subscription)" }, { value = "api", label = "Anthropic API (key)" } ] },
+  # Only the API needs it, and only with a key not scoped to one workspace.
+  { key = "HERDR_AUTO_TITLE_ANTHROPIC_WORKSPACE_ID", type = "text", label = "API workspace",
+    pattern = "(wrkspc_[A-Za-z0-9_-]+)?", placeholder = "wrkspc_…",
+    help = "With the API: the workspace a key not scoped to one bills to (Console → Workspaces)." },
   { key = "HERDR_AUTO_TITLE_NAMER_MODEL", type = "text", label = "Model", default = "claude-haiku-5-5",
     pattern = "[a-z0-9.-]+" },
   { key = "HERDR_AUTO_TITLE_NAMER_INTERVAL_S", type = "duration_s", label = "Agent re-ask", min = 10, max = 3600, default = 120 },
