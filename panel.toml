@@ -19,13 +19,13 @@ kind = "text"
 source = ["./herdr-auto-title", "settings", "overrides"]
 
 [[section]]
-title = "Titles"
+title = "Tab and pane titles"
 fields = [
-  { key = "HERDR_AUTO_TITLE_MAX_LENGTH", type = "int", label = "Longest title", min = 8, max = 200, default = 50,
+  { key = "HERDR_AUTO_TITLE_MAX_LENGTH", type = "int", label = "Max title width", min = 8, max = 200, default = 50,
     help = "The most columns a tab's title may take; a longer one is shortened." },
-  { key = "HERDR_AUTO_TITLE_BRANCH_MAX", type = "int", label = "Longest branch", min = 0, max = 80, default = 12,
+  { key = "HERDR_AUTO_TITLE_BRANCH_MAX", type = "int", label = "Max branch width", min = 0, max = 80, default = 12,
     help = "The most columns of git branch name a title may carry. 0 leaves the branch out." },
-  { key = "HERDR_AUTO_TITLE_POSITION", type = "bool", label = "Tab position first", default = true,
+  { key = "HERDR_AUTO_TITLE_POSITION", type = "bool", label = "Number the tabs", default = true,
     help = "Start each tab's title with its number, as in \"2 · api\"." },
   { key = "HERDR_AUTO_TITLE_PANES", type = "bool", label = "Name panes too", default = true,
     help = "Name each pane as well as its tab: herdr's goto panel lists panes by these names." },
@@ -37,10 +37,6 @@ fields = [
     help = "Start an agent pane's title with the agent's name. Off: an agent that said nothing gets its folder." },
   { key = "HERDR_AUTO_TITLE_TRANSCRIPT", type = "bool", label = "Read transcripts", default = true,
     help = "When an agent has not titled its terminal, read its Claude Code transcript to see what it is doing." },
-  { key = "HERDR_AUTO_TITLE_WORKSPACES", type = "bool", label = "Topic token", default = true,
-    help = "Publish what each workspace is doing as $topic. Shows only if your sidebar rows include $topic." },
-  { key = "HERDR_AUTO_TITLE_DEBUG", type = "bool", label = "Debug logging", default = false,
-    help = "Log every step (DEBUG rather than INFO). For tracking down a problem; noisy otherwise." },
 ]
 
 [[section]]
@@ -48,7 +44,26 @@ title = "Agent names"
 fields = [
   { key = "HERDR_AUTO_TITLE_AGENTS", type = "bool", label = "Name agents", default = true,
     help = "Name each Claude Code agent after its task. A name you give an agent yourself is never replaced." },
-  { key = "HERDR_AUTO_TITLE_NAMER", type = "choice", label = "Model via", default = "cli",
+  { key = "HERDR_AUTO_TITLE_NAMER_INTERVAL_S", type = "duration_s", label = "Rename at most every", min = 10, max = 3600, default = 120,
+    help = "The shortest gap between two names for one agent; a new one is asked only after a new prompt." },
+]
+
+[[section]]
+title = "Workspace names"
+fields = [
+  { key = "HERDR_AUTO_TITLE_NAME_WORKSPACES", type = "bool", label = "Name workspaces", default = true,
+    help = "Label each workspace (up to three words) from its folders, repos and agents. Your own labels stay." },
+  { key = "HERDR_AUTO_TITLE_WORKSPACE_INTERVAL_S", type = "duration_s", label = "Relabel at most every", min = 30, max = 86400, default = 300,
+    help = "The shortest gap between two labels for one workspace; a new one is asked only once its contents change." },
+  { key = "HERDR_AUTO_TITLE_WORKSPACES", type = "bool", label = "Sidebar topic", default = true,
+    help = "Publish what each workspace's active tab is doing as $topic. Shows only if your sidebar rows include $topic." },
+]
+
+# Agent and workspace names both come from this model.
+[[section]]
+title = "Naming model"
+fields = [
+  { key = "HERDR_AUTO_TITLE_NAMER", type = "choice", label = "Ask the model via", default = "cli",
     choices = [ { value = "cli", label = "claude -p (subscription)" }, { value = "api", label = "Anthropic API (key)" } ],
     help = "How names are asked for: claude -p uses your Claude subscription; the API bills an API key." },
   # Only the API needs it, and only with a key not scoped to one workspace.
@@ -58,12 +73,13 @@ fields = [
   { key = "HERDR_AUTO_TITLE_NAMER_MODEL", type = "text", label = "Model", default = "claude-haiku-5-5",
     pattern = "[a-z0-9.-]+",
     help = "The model that picks agent and workspace names. A small, fast one is enough." },
-  { key = "HERDR_AUTO_TITLE_NAMER_INTERVAL_S", type = "duration_s", label = "Agent re-ask", min = 10, max = 3600, default = 120,
-    help = "Least time between two names for one agent; a new one is asked only after a new prompt." },
-  { key = "HERDR_AUTO_TITLE_NAME_WORKSPACES", type = "bool", label = "Name workspaces", default = true,
-    help = "Label each workspace (up to three words) from its folders, repos and agents. Your own labels stay." },
-  { key = "HERDR_AUTO_TITLE_WORKSPACE_INTERVAL_S", type = "duration_s", label = "Workspace re-ask", min = 30, max = 86400, default = 300,
-    help = "Least time between two labels for one workspace; a new one is asked only once its contents change." },
+]
+
+[[section]]
+title = "Troubleshooting"
+fields = [
+  { key = "HERDR_AUTO_TITLE_DEBUG", type = "bool", label = "Debug logging", default = false,
+    help = "Log every step (DEBUG rather than INFO). For tracking down a problem; noisy otherwise." },
 ]
 
 [[section]]
@@ -72,9 +88,11 @@ kind = "list"
 source = { run = ["./herdr-auto-title", "panel", "workspaces"], every_s = 5 }
 columns = [ { key = "label", title = "Workspace" }, { key = "named_by", title = "Named by", width = 12 } ]
 empty = "No workspaces yet."
+# A lowercase key renames now; the same key with Shift hands back. Keys work
+# from anywhere in the panel, so none of them is an arrow alias (h j k l).
 row_actions = [
-  { label = "Rename now", key = "r", run = ["./herdr-auto-title", "workspace", "rename-now", "{row.id}"] },
-  { label = "Hand back", key = "h", run = ["./herdr-auto-title", "workspace", "release", "{row.id}"],
+  { label = "Rename now", key = "w", run = ["./herdr-auto-title", "workspace", "rename-now", "{row.id}"] },
+  { label = "Hand back", key = "W", run = ["./herdr-auto-title", "workspace", "release", "{row.id}"],
     confirm = "Let Auto Title name {row.label} again?" },
 ]
 
@@ -88,7 +106,6 @@ columns = [
   { key = "named_by", title = "Named by", width = 12 },
 ]
 empty = "No Claude Code agents running."
-# Keys are unique across the panel, so these differ from the workspaces'.
 row_actions = [
   { label = "Rename now", key = "a", run = ["./herdr-auto-title", "agent", "rename-now", "{row.pane_id}"] },
   { label = "Hand back", key = "A", run = ["./herdr-auto-title", "agent", "release", "{row.pane_id}"],

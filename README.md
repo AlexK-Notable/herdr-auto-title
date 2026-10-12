@@ -189,6 +189,9 @@ command = "herdr.auto-title.open-settings"
 description = "auto title settings"
 ```
 
+In the lists, `w` renames the selected workspace now and `W` hands it back;
+`a` and `A` do the same for the selected agent.
+
 Saving writes `config.env` (the file Auto Title found, by the order above),
 changing only the lines you edited, and restarts Auto Title so the change takes
 effect. A setting also given in the environment Herdr starts the plugin with
