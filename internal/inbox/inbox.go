@@ -15,10 +15,13 @@ import (
 	"time"
 )
 
-// The operations a request can ask for.
+// The operations a request can ask for: the first two about a workspace, the
+// last two about the agent in a pane.
 const (
-	OpRenameNow = "rename-now"
-	OpRelease   = "release"
+	OpRenameNow      = "rename-now"
+	OpRelease        = "release"
+	OpAgentRenameNow = "agent-rename-now"
+	OpAgentRelease   = "agent-release"
 )
 
 const (
@@ -29,15 +32,23 @@ const (
 	perDrain = 64
 )
 
-// Request asks the instance to do Op to one workspace.
+// Request asks the instance to do Op to one workspace, or to the agent in one
+// pane.
 type Request struct {
 	Op          string `json:"op"`
-	WorkspaceID string `json:"workspace_id"`
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	PaneID      string `json:"pane_id,omitempty"`
 }
 
 func (r Request) valid() bool {
-	return (r.Op == OpRenameNow || r.Op == OpRelease) &&
-		r.WorkspaceID != "" && len(r.WorkspaceID) <= maxID
+	switch r.Op {
+	case OpRenameNow, OpRelease:
+		return r.WorkspaceID != "" && len(r.WorkspaceID) <= maxID
+	case OpAgentRenameNow, OpAgentRelease:
+		return r.PaneID != "" && len(r.PaneID) <= maxID
+	}
+
+	return false
 }
 
 // Send leaves the request in dir. The file is written under a temporary name

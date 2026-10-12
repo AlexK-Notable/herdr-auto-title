@@ -67,6 +67,9 @@ type App struct {
 	// inbox is where the command line leaves requests for this session; empty
 	// takes none.
 	inbox string
+	// agentsDue are the panes whose agent was asked to be renamed now: its
+	// name is forced due on the poll that next names it.
+	agentsDue map[string]struct{}
 }
 
 // New builds the application. The client belongs to Run rather than to the

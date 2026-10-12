@@ -8,6 +8,7 @@ import (
 
 	"github.com/kryptamine/herdr-auto-title/internal/herdr"
 	"github.com/kryptamine/herdr-auto-title/internal/herdr/herdrtest"
+	"github.com/kryptamine/herdr-auto-title/internal/inbox"
 	"github.com/kryptamine/herdr-auto-title/internal/namer"
 	"github.com/kryptamine/herdr-auto-title/internal/reads/readstest"
 )
@@ -198,5 +199,119 @@ func TestAnAgentTheUserNamedIsNeverAskedAbout(t *testing.T) {
 
 	if len(backend.requests()) != 0 {
 		t.Errorf("the model was asked about an agent the user named")
+	}
+}
+
+func sendAgentRequest(dir, op, paneID string) error {
+	return inbox.Send(dir, inbox.Request{Op: op, PaneID: paneID})
+}
+
+func (c *cannedNamer) set(name string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.name = name
+}
+
+func TestRenameNowAsksAgainAboutAnAgentTheIntervalWouldLeaveAlone(t *testing.T) {
+	t.Parallel()
+
+	home := transcript(t, typed("fix the dashboard charts"))
+	client := herdrtest.New(
+		[]herdr.TabInfo{{TabID: "wE:t1", Label: "1"}},
+		[]herdr.PaneInfo{agentPane()},
+	)
+	backend := &cannedNamer{name: "dashboard-charts"}
+	h := startNaming(t, client, backend, home) // the default two minutes
+	box := t.TempDir()
+	h.app.WithInbox(box)
+
+	pollUntil(t, h, func() bool { return len(client.AgentRenames()) > 0 })
+
+	backend.set("chart-legend")
+	h.polls(3)
+	time.Sleep(20 * time.Millisecond)
+	h.polls(2)
+
+	if len(client.AgentRenames()) != 1 {
+		t.Fatalf("renamed inside the interval without being asked: %v", client.AgentRenames())
+	}
+
+	if err := sendAgentRequest(box, inbox.OpAgentRenameNow, "wE:p1"); err != nil {
+		t.Fatal(err)
+	}
+
+	pollUntil(t, h, func() bool { return len(client.AgentRenames()) > 1 })
+
+	if got := client.AgentRenames()[1].Name; got != "chart-legend" {
+		t.Errorf("renamed to %q, want the fresh name", got)
+	}
+}
+
+func TestRenameNowLeavesAnAgentTheUserNamedAlone(t *testing.T) {
+	t.Parallel()
+
+	home := transcript(t, typed("review the diff"))
+	client := herdrtest.New(
+		[]herdr.TabInfo{{TabID: "wE:t1", Label: "1"}},
+		[]herdr.PaneInfo{agentPane()},
+	)
+	client.SetAgentName("wE:p1", "reviewer")
+
+	backend := &cannedNamer{name: "review-diff"}
+	h := startNaming(t, client, backend, home)
+	box := t.TempDir()
+	h.app.WithInbox(box)
+	h.polls(2)
+
+	if err := sendAgentRequest(box, inbox.OpAgentRenameNow, "wE:p1"); err != nil {
+		t.Fatal(err)
+	}
+
+	h.polls(3)
+	time.Sleep(20 * time.Millisecond)
+	h.polls(2)
+
+	if len(client.AgentRenames()) != 0 || len(backend.requests()) != 0 {
+		t.Errorf("renames %v, %d asks: the user's name was touched",
+			client.AgentRenames(), len(backend.requests()))
+	}
+}
+
+func TestAReleasedAgentIsNamedAgainAndNotClaimedBack(t *testing.T) {
+	t.Parallel()
+
+	home := transcript(t, typed("review the diff"))
+	client := herdrtest.New(
+		[]herdr.TabInfo{{TabID: "wE:t1", Label: "1"}},
+		[]herdr.PaneInfo{agentPane()},
+	)
+	client.SetAgentName("wE:p1", "reviewer")
+
+	backend := &cannedNamer{name: "review-diff"}
+	h := startNaming(t, client, backend, home)
+	box := t.TempDir()
+	h.app.WithInbox(box)
+	h.polls(2)
+
+	if !h.app.labels.AgentClaimed("wE:p1", "reviewer") {
+		t.Fatal("the user's name was not claimed")
+	}
+
+	if err := sendAgentRequest(box, inbox.OpAgentRelease, "wE:p1"); err != nil {
+		t.Fatal(err)
+	}
+
+	pollUntil(t, h, func() bool { return len(client.AgentRenames()) > 0 })
+	h.polls(5)
+
+	renames := client.AgentRenames()
+	if len(renames) != 1 || renames[0].Name != "review-diff" {
+		t.Errorf("renames = %+v, want the auto name once", renames)
+	}
+
+	if h.app.labels.AgentClaimed("wE:p1", "reviewer") ||
+		h.app.labels.AgentClaimed("wE:p1", "review-diff") {
+		t.Error("the released agent was claimed again")
 	}
 }

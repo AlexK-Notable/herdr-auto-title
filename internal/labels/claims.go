@@ -280,10 +280,18 @@ func (l *Labels) saveLocked() {
 // user's own label as a new rename and claim it again. It reports whether
 // there was a lock.
 func (l *Labels) ReleaseWorkspace(id string) bool {
+	return l.release(l.workspaces, id)
+}
+
+// ReleaseAgent hands the agent in a pane back to Auto Title, on the terms
+// ReleaseWorkspace hands back a workspace.
+func (l *Labels) ReleaseAgent(paneID string) bool {
+	return l.release(l.agents, paneID)
+}
+
+func (l *Labels) release(c *claims, id string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-
-	c := l.workspaces
 
 	label, locked := c.locked[id]
 	if !locked {
@@ -304,10 +312,20 @@ func (l *Labels) ReleaseWorkspace(id string) bool {
 // WorkspaceClaimed reports whether the user claimed the workspace and it still
 // wears the label it had then, which is what keeps a lock alive.
 func (l *Labels) WorkspaceClaimed(id, label string) bool {
+	return l.claimed(l.workspaces, id, label)
+}
+
+// AgentClaimed reports whether the user named the agent in a pane and it
+// still wears that name.
+func (l *Labels) AgentClaimed(paneID, name string) bool {
+	return l.claimed(l.agents, paneID, name)
+}
+
+func (l *Labels) claimed(c *claims, id, label string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	locked, ok := l.workspaces.locked[id]
+	locked, ok := c.locked[id]
 
 	return ok && locked == label
 }

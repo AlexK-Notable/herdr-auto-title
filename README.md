@@ -195,7 +195,7 @@ builds from a herdr-panel checkout instead). It needs Go 1.26, which the `go`
 command downloads if yours is older, unless `GOTOOLCHAIN=local`; Auto Title
 itself still builds on Go 1.24.
 
-## Workspace commands
+## Workspace and agent commands
 
 These talk to the Auto Title running in the session they are started in:
 
@@ -203,11 +203,15 @@ These talk to the Auto Title running in the session they are started in:
 herdr-auto-title panel workspaces            # JSON: id, label and who named each
 herdr-auto-title workspace rename-now <id>   # ask for a fresh name soon
 herdr-auto-title workspace release <id>      # hand a workspace you named back
+herdr-auto-title panel agents                # JSON: each Claude Code agent, where it is, who named it
+herdr-auto-title agent rename-now <pane>     # ask for a fresh agent name on the next poll
+herdr-auto-title agent release <pane>        # hand an agent you named back
 ```
 
 Each prints a JSON message (`{"ok": true, "message": "..."}`) and exits `1` when
-it could not do what was asked. `rename-now` leaves a workspace you named alone;
-release it first.
+it could not do what was asked. `rename-now` leaves a workspace or an agent you
+named alone; release it first. It asks whatever the interval says, and the model
+keeps the current name if that still fits.
 
 ## Documentation
 

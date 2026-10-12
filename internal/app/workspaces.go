@@ -38,28 +38,67 @@ func (a *App) WithInbox(dir string) *App {
 }
 
 // serveInbox applies the requests waiting for this session. A locked workspace
-// is the user's: only a release touches it.
+// or agent is the user's: only a release touches it.
 func (a *App) serveInbox(pass *labels.Pass) {
 	if a.inbox == "" {
 		return
 	}
 
 	for _, req := range inbox.Drain(a.inbox) {
-		key := workspaceKeyPrefix + req.WorkspaceID
-
 		switch req.Op {
-		case inbox.OpRelease:
-			if a.labels.ReleaseWorkspace(req.WorkspaceID) {
-				a.log.Info("a workspace was handed back", "workspace_id", req.WorkspaceID)
-			}
-
-			a.forceName(key)
-		case inbox.OpRenameNow:
-			if !pass.WorkspaceLocked(req.WorkspaceID) {
-				a.forceName(key)
-			}
+		case inbox.OpAgentRelease, inbox.OpAgentRenameNow:
+			a.serveAgentRequest(pass, req)
+		default:
+			a.serveWorkspaceRequest(pass, req)
 		}
 	}
+}
+
+func (a *App) serveWorkspaceRequest(pass *labels.Pass, req inbox.Request) {
+	key := workspaceKeyPrefix + req.WorkspaceID
+
+	switch req.Op {
+	case inbox.OpRelease:
+		if a.labels.ReleaseWorkspace(req.WorkspaceID) {
+			a.log.Info("a workspace was handed back", "workspace_id", req.WorkspaceID)
+		}
+
+		a.forceName(key)
+	case inbox.OpRenameNow:
+		if !pass.WorkspaceLocked(req.WorkspaceID) {
+			a.forceName(key)
+		}
+	}
+}
+
+func (a *App) serveAgentRequest(pass *labels.Pass, req inbox.Request) {
+	switch req.Op {
+	case inbox.OpAgentRelease:
+		if a.labels.ReleaseAgent(req.PaneID) {
+			a.log.Info("an agent was handed back", "pane_id", req.PaneID)
+		}
+
+		a.forceAgent(req.PaneID)
+	case inbox.OpAgentRenameNow:
+		if !pass.AgentLocked(req.PaneID) {
+			a.forceAgent(req.PaneID)
+		}
+	}
+}
+
+// forceAgent has the agent in a pane asked about on the next poll that names
+// it, whatever the interval says. Its name is kept by session, which only
+// that poll works out, so the pane waits here until then.
+func (a *App) forceAgent(paneID string) {
+	if a.agents == nil {
+		return
+	}
+
+	if a.agentsDue == nil {
+		a.agentsDue = make(map[string]struct{})
+	}
+
+	a.agentsDue[paneID] = struct{}{}
 }
 
 func (a *App) forceName(key string) {

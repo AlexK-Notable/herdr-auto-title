@@ -319,7 +319,7 @@ nothing.
 
 ## The command line and the inbox
 
-Three subcommands serve Herdr's panel, and print JSON on stdout:
+Six subcommands serve Herdr's panel, and print JSON on stdout:
 
 - `herdr-auto-title panel workspaces` lists `{id, label, named_by}` for each
   workspace; `named_by` is `you` when `claimed_workspaces` in the manual file
@@ -328,6 +328,13 @@ Three subcommands serve Herdr's panel, and print JSON on stdout:
   check the workspace exists and that a live instance holds the session's claim,
   then leave a request in the inbox. A failure is `{"ok": false, "message": ...}`
   with exit status 1.
+- `herdr-auto-title panel agents` lists `{pane_id, name, label, where,
+  named_by}` for each Claude Code agent (`where` is its workspace's label);
+  `agent rename-now <pane>` and `agent release <pane>` check as the workspace
+  ones do, then leave a request naming the pane. The instance keeps an agent's
+  name by session, which only the next poll's naming works out, so it holds the
+  pane in `agentsDue` until then and forces that session's name due there. A
+  request for a pane the pass did not name is dropped.
 
 The inbox is a directory beside the session's claim file, named from the same
 socket hash with an `.inbox` suffix: workspace ids such as `w1` repeat across

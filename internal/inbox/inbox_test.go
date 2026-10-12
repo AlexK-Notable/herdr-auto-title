@@ -134,3 +134,28 @@ func TestTwoSessionsDoNotShareAnInbox(t *testing.T) {
 		t.Error("no state directory should mean no inbox")
 	}
 }
+
+func TestAgentRequestsNameAPaneAndNeedOne(t *testing.T) {
+	t.Parallel()
+
+	dir := filepath.Join(t.TempDir(), "box")
+	good := []inbox.Request{
+		{Op: inbox.OpAgentRenameNow, PaneID: "w1:p2"},
+		{Op: inbox.OpAgentRelease, PaneID: "w1:p3"},
+	}
+	bad := []inbox.Request{
+		{Op: inbox.OpAgentRenameNow, WorkspaceID: "w1"}, // an agent request without a pane
+		{Op: inbox.OpRenameNow, PaneID: "w1:p2"},        // a workspace request without a workspace
+	}
+
+	for _, req := range append(append([]inbox.Request{}, good...), bad...) {
+		if err := inbox.Send(dir, req); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got := inbox.Drain(dir)
+	if len(got) != len(good) || got[0] != good[0] || got[1] != good[1] {
+		t.Errorf("drained %+v, want only %+v", got, good)
+	}
+}

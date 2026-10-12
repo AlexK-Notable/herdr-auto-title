@@ -66,3 +66,20 @@ row_actions = [
   { label = "Hand back", key = "h", run = ["./herdr-auto-title", "workspace", "release", "{row.id}"],
     confirm = "Let Auto Title name {row.label} again?" },
 ]
+
+[[section]]
+title = "Agents"
+kind = "list"
+source = { run = ["./herdr-auto-title", "panel", "agents"], every_s = 5 }
+columns = [
+  { key = "label", title = "Agent" },
+  { key = "where", title = "Workspace", width = 24 },
+  { key = "named_by", title = "Named by", width = 12 },
+]
+empty = "No Claude Code agents running."
+# Keys are unique across the panel, so these differ from the workspaces'.
+row_actions = [
+  { label = "Rename now", key = "a", run = ["./herdr-auto-title", "agent", "rename-now", "{row.pane_id}"] },
+  { label = "Hand back", key = "A", run = ["./herdr-auto-title", "agent", "release", "{row.pane_id}"],
+    confirm = "Let Auto Title name {row.label} again?" },
+]

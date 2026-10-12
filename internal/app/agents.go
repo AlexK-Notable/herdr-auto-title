@@ -87,6 +87,10 @@ func (a *App) nameAgents(
 
 		a.nameAgent(ctx, pass, poll, agent, pane, takenBy(worn, agent.PaneID))
 	}
+
+	// A request for a pane this pass did not name (no agent, not Claude, the
+	// user's name) is dropped rather than kept for whatever comes next.
+	clear(a.agentsDue)
 }
 
 // nameAgent gives one agent its remembered name and queues a new one when due.
@@ -130,6 +134,11 @@ func (a *App) nameAgent(
 	version := strconv.Itoa(pane.AgentTurns)
 	if pane.AgentTurns == 0 && title == "" {
 		version = ""
+	}
+
+	if _, due := a.agentsDue[agent.PaneID]; due {
+		delete(a.agentsDue, agent.PaneID)
+		a.agents.Force(key)
 	}
 
 	a.agents.Name(key, version, namer.Request{

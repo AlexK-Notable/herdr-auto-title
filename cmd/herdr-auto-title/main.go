@@ -44,6 +44,16 @@ func main() {
 		os.Exit(panelCommand(func(ctx context.Context, env panel.Env) int {
 			return panel.Act(ctx, os.Stdout, env, op, id)
 		}))
+	case len(os.Args) == 3 && os.Args[1] == "panel" && os.Args[2] == "agents":
+		os.Exit(panelCommand(func(ctx context.Context, env panel.Env) int {
+			return panel.Agents(ctx, os.Stdout, env)
+		}))
+	case len(os.Args) == 4 && os.Args[1] == "agent" && agentOps[os.Args[2]] != "":
+		op, id := agentOps[os.Args[2]], os.Args[3]
+
+		os.Exit(panelCommand(func(ctx context.Context, env panel.Env) int {
+			return panel.ActAgent(ctx, os.Stdout, env, op, id)
+		}))
 	default:
 		err = errors.New(usage)
 	}
@@ -57,11 +67,18 @@ func main() {
 // cmdSettings is the subcommand that runs, opens or explains the panel.
 const cmdSettings = "settings"
 
-const usage = "usage: herdr-auto-title [restart | settings [open | overrides] | panel workspaces | " +
-	"workspace rename-now <id> | workspace release <id>]"
+const usage = "usage: herdr-auto-title [restart | settings [open | overrides] | " +
+	"panel workspaces | workspace rename-now <id> | workspace release <id> | " +
+	"panel agents | agent rename-now <pane> | agent release <pane>]"
 
 // workspaceOps are the requests `workspace` takes, which are the inbox's.
 var workspaceOps = map[string]bool{inbox.OpRenameNow: true, inbox.OpRelease: true}
+
+// agentOps maps the requests `agent` takes to the inbox's.
+var agentOps = map[string]string{
+	"rename-now": inbox.OpAgentRenameNow,
+	"release":    inbox.OpAgentRelease,
+}
 
 // panelCommand runs one panel command against the session this process was
 // started in, and returns its exit status. It prints no log: the panel shows
