@@ -254,6 +254,69 @@ func TestAForcedNameIsAskedForAtOnceThroughIntervalAndBackoff(t *testing.T) {
 	}
 }
 
+func TestAForcedNameSurvivesARestartThatCutsItShort(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "agent-names.json")
+
+	b := &fakeBackend{names: []string{"first", "second"}}
+	first, _ := newService(b, path)
+	first.Name(sess, "1", Request{})
+	drain(first)
+
+	// Asked for, then the instance is replaced before the model answers.
+	first.Force(sess)
+	first.Name(sess, "1", Request{})
+
+	second, _ := newService(b, path)
+	second.Name(sess, "1", Request{})
+	drain(second)
+
+	if got := second.Remembered(sess); got != "second" {
+		t.Errorf("after the restart: %q, want the forced name asked for again", got)
+	}
+
+	second.Name(sess, "1", Request{})
+	drain(second)
+
+	if b.count() != 2 {
+		t.Errorf("calls = %d, want 2: the force is spent once answered", b.count())
+	}
+}
+
+func TestAForcedNameThatFailsIsAskedAgainAfterTheBackoff(t *testing.T) {
+	t.Parallel()
+
+	b := &fakeBackend{names: []string{"first"}}
+	s, c := newService(b, "")
+	s.Name(sess, "1", Request{})
+	drain(s)
+
+	b.err = errors.New("rate limited")
+
+	s.Force(sess)
+	s.Name(sess, "1", Request{})
+	drain(s)
+
+	s.Name(sess, "1", Request{})
+	drain(s)
+
+	if b.count() != 2 {
+		t.Fatalf("calls = %d, want 2: no retry inside the backoff", b.count())
+	}
+
+	b.err = nil
+	b.names = []string{"second"}
+	c.t = c.t.Add(time.Minute)
+
+	s.Name(sess, "1", Request{})
+	drain(s)
+
+	if got := s.Remembered(sess); got != "second" {
+		t.Errorf("after the backoff: %q, want the forced name asked for again", got)
+	}
+}
+
 func TestForcingAKeyNeverNamedChangesNothing(t *testing.T) {
 	t.Parallel()
 

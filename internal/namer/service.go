@@ -75,11 +75,13 @@ type entry struct {
 	Turns int       `json:"turns,omitempty"`
 	At    time.Time `json:"at"`
 
+	// Forced makes the next Name call ask whatever the interval or the
+	// version say, until an answer comes. It is kept on disk, so a request
+	// the user made survives a restart that cuts it short.
+	Forced bool `json:"forced,omitempty"`
+
 	failures int
 	retryAt  time.Time
-	// forced makes the next Name call ask whatever the interval, the version
-	// or a backoff say.
-	forced bool
 }
 
 type job struct {
@@ -131,8 +133,8 @@ func (s *Service) Name(key, version string, req Request) string {
 	defer s.mu.Unlock()
 
 	e := s.entries[key]
-	if s.due(e, version, req.Task) && s.enqueue(key, version, req) && e != nil {
-		e.forced = false
+	if s.due(e, version, req.Task) {
+		s.enqueue(key, version, req)
 	}
 
 	if e == nil {
@@ -143,13 +145,16 @@ func (s *Service) Name(key, version string, req Request) string {
 }
 
 // Force makes the name kept under key due on the next Name call, however
-// recently it was chosen. A key never named is due already.
+// recently it was chosen and through any backoff, and keeps it due until an
+// answer comes. A key never named is due already.
 func (s *Service) Force(key string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if e := s.entries[key]; e != nil {
-		e.forced = true
+		e.Forced, e.retryAt = true, time.Time{}
+
+		s.saveLocked()
 	}
 }
 
@@ -189,10 +194,13 @@ func (s *Service) due(e *entry, version string, task Task) bool {
 	now := s.now()
 
 	switch {
-	case e == nil, e.forced:
+	case e == nil:
 		return true
 	case now.Before(e.retryAt):
+		// A forced name that failed waits out its backoff too.
 		return false
+	case e.Forced:
+		return true
 	case e.Name == "":
 		// Every earlier attempt failed; the backoff above has run out.
 		return true
@@ -276,7 +284,7 @@ func (s *Service) serve(ctx context.Context, j job) {
 	}
 
 	e.Name, e.Version, e.Turns, e.At = name, j.version, 0, s.now()
-	e.failures, e.retryAt = 0, time.Time{}
+	e.failures, e.retryAt, e.Forced = 0, time.Time{}, false
 
 	s.saveLocked()
 }
