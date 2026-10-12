@@ -3,9 +3,8 @@
     <img src="assets/banner.png" alt="Herdr Auto Title: smarter tab titles, zero effort" width="800">
   </p>
   <p>
-    <a href="https://github.com/kryptamine/herdr-auto-title/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/kryptamine/herdr-auto-title/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI&labelColor=000000" alt="CI status"></a>
-    <a href="https://github.com/kryptamine/herdr-auto-title/releases"><img src="https://img.shields.io/github/v/release/kryptamine/herdr-auto-title?style=for-the-badge&logo=github&logoColor=white&color=0797ff&labelColor=000000" alt="Latest release"></a>
-    <a href="https://go.dev"><img src="https://img.shields.io/github/go-mod/go-version/kryptamine/herdr-auto-title?style=for-the-badge&logo=go&logoColor=white&color=0797ff&labelColor=000000" alt="Go version"></a>
+    <a href="https://github.com/AlexK-Notable/herdr-auto-title/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/AlexK-Notable/herdr-auto-title/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI&labelColor=000000" alt="CI status"></a>
+    <a href="https://go.dev"><img src="https://img.shields.io/github/go-mod/go-version/AlexK-Notable/herdr-auto-title?style=for-the-badge&logo=go&logoColor=white&color=0797ff&labelColor=000000" alt="Go version"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0797ff?style=for-the-badge&labelColor=000000" alt="MIT licence"></a>
   </p>
 </div>
@@ -13,6 +12,20 @@
 A [Herdr](https://herdr.dev) plugin that names your tabs and panes after the
 work in them. It reads the session twice a second, and it leaves alone any tab
 or pane you rename yourself.
+
+> [!NOTE]
+> This is a personal fork of
+> [kryptamine/herdr-auto-title](https://github.com/kryptamine/herdr-auto-title),
+> which is the plugin as its author ships it. The fork adds:
+>
+> - **Agent and workspace names**: each Claude Code agent and each workspace is
+>   named after its task by a small model, through `claude -p` or the Anthropic
+>   API. What is sent, and how to turn it off, is in [SECURITY.md](SECURITY.md#scope);
+>   the settings are under "Agent names" in [config.env.example](config.env.example).
+> - **A [settings panel](#settings-panel)**, with lists of workspaces and agents
+>   to rename now or hand back.
+>
+> The fork makes no releases of its own; it installs from its `main`.
 
 https://github.com/user-attachments/assets/ada47ba7-cf64-405b-bc07-185dc10ef2ef
 
@@ -24,7 +37,7 @@ itself unless toolchain switching is off (`GOTOOLCHAIN=local`, the default on Fe
 Alpine). Herdr builds the plugin from source when it installs it.
 
 ```sh
-herdr plugin install kryptamine/herdr-auto-title
+herdr plugin install AlexK-Notable/herdr-auto-title
 herdr plugin action invoke herdr.auto-title.restart
 ```
 
@@ -33,22 +46,14 @@ herdr plugin action invoke herdr.auto-title.restart
 > this one now. Reopening the terminal attaches a new client to the same server
 > and does not help; `herdr server stop` would work, at the cost of the session.
 
-That installs the latest commit on `main`, which can be ahead of the latest
-[release](https://github.com/kryptamine/herdr-auto-title/releases). To install
-a release instead, name its tag:
-
-<!-- x-release-please-start-version -->
-
-```sh
-herdr plugin install kryptamine/herdr-auto-title --ref v0.13.0
-herdr plugin action invoke herdr.auto-title.restart
-```
-
-<!-- x-release-please-end -->
+That installs the latest commit on this fork's `main`. The original plugin's
+[releases](https://github.com/kryptamine/herdr-auto-title/releases) install
+with `herdr plugin install kryptamine/herdr-auto-title --ref <tag>`, without
+this fork's additions.
 
 Herdr has no update command yet, so run the install again to move to a newer
-commit or tag, then the restart action: the old build keeps running until it
-does. Your configuration is kept.
+commit, then the restart action: the old build keeps running until it does.
+Your configuration is kept.
 
 If you use Claude Code, also run `herdr integration install claude`. Without it,
 a session you opened with a slash command and never prompted stays `claude`.
@@ -167,7 +172,8 @@ leave. On Windows the action needs Herdr 0.9.0 or newer.
 ## Settings panel
 
 On Linux and macOS, a popup edits the settings above and lists your
-workspaces, with who named each and buttons to rename one now or hand it back:
+workspaces and your Claude Code agents, with who named each and buttons to
+rename one now or hand it back:
 
 ```sh
 herdr plugin action invoke herdr.auto-title.open-settings

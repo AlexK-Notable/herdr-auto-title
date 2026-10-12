@@ -3,10 +3,15 @@
 What the plugin does and how to install it are in the
 [README](README.md). This is how to work on it.
 
+This is a personal fork of
+[kryptamine/herdr-auto-title](https://github.com/kryptamine/herdr-auto-title).
+A change that is not about the fork's additions (agent and workspace names, the
+settings panel) belongs in the original plugin, under its own guide.
+
 ## Before you start
 
-- Open an issue first for anything non-trivial, and settle the scope there
-  before you spend an evening on it.
+- Issues are off on this fork. For anything non-trivial, open a draft pull
+  request early and settle the scope on it before you spend an evening on it.
 - Small fixes go straight to a PR: a typo, an obvious bug, a dependency bump.
 - If an issue rests on something false about Herdr's API, say so on the issue
   and correct it rather than working around it in silence.
@@ -18,7 +23,7 @@ What the plugin does and how to install it are in the
 You need what the README asks for to install the plugin, plus a checkout:
 
 ```sh
-git clone https://github.com/kryptamine/herdr-auto-title.git
+git clone https://github.com/AlexK-Notable/herdr-auto-title.git
 cd herdr-auto-title
 make check      # fmt + vet + lint + test; the gate before any commit
 make run        # build and run it in your current session
@@ -79,7 +84,9 @@ in [docs/architecture](docs/architecture/).
   collapse a PR into one changelog line and lose the per-commit granularity that
   "one logical change per commit" exists to produce.
 - Versions, tags and `CHANGELOG.md` belong to release-please, which also bumps
-  the version in `herdr-plugin.toml`. Do not edit any of them by hand.
+  the version in `herdr-plugin.toml`. Do not edit any of them by hand. The
+  workflow is turned off on this fork, which makes no releases, so the version
+  stays the original plugin's.
 - Keep a PR to one thing. A refactor, a feature and a formatting sweep are three
   pull requests.
 
