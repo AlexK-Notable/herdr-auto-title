@@ -1,2 +1,3 @@
-# Every change needs the approval of one of its code owners to merge.
-* @kryptamine @recih @6temes
+# GitHub asks the code owner to review every pull request. Approval is
+# required to merge only while branch protection on main says so.
+* @AlexK-Notable
