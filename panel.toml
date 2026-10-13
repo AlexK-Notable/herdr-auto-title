@@ -57,6 +57,8 @@ fields = [
     help = "The shortest gap between two labels for one workspace; a new one is asked only once its contents change." },
   { key = "HERDR_AUTO_TITLE_WORKSPACES", type = "bool", label = "Sidebar topic", default = true,
     help = "Publish what each workspace's active tab is doing as $topic. Shows only if your sidebar rows include $topic." },
+  { key = "HERDR_AUTO_TITLE_TOPIC_AGENT_NAME", type = "bool", label = "Agent in topic", default = false,
+    help = "Start each topic with the agent's name, as in \"claude › fix login\". Tab titles follow Agent name first." },
 ]
 
 # Agent and workspace names both come from this model.

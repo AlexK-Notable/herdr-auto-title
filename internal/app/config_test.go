@@ -36,7 +36,7 @@ func isolate(t *testing.T) {
 	names := []string{
 		EnvDebug, EnvPoll, EnvMaxLength, EnvBranchMax,
 		EnvPosition, EnvManual, EnvTranscript, EnvAgentName, EnvPanes,
-		EnvPreferAgent, EnvPaneID, EnvWorkspaces, EnvWorkspaceMaxLength,
+		EnvPreferAgent, EnvPaneID, EnvWorkspaces, EnvWorkspaceMaxLength, EnvTopicAgentName,
 		// Claude Code's own variable is cleared with ours: it now decides a
 		// Config field, so a developer's real home would otherwise be read.
 		EnvClaudeDirs, EnvClaudeConfigDir,
@@ -459,6 +459,23 @@ func TestWorkspaceTopicsAreReportedByDefault(t *testing.T) {
 
 	if cfg, _ = LoadConfig(); !cfg.ReportWorkspaces {
 		t.Errorf("%s=true turned reporting off", EnvWorkspaces)
+	}
+}
+
+// A topic leaves the agent's name out unless asked, whatever the tab titles do.
+func TestTheTopicAgentNameIsOffUnlessSet(t *testing.T) {
+	isolate(t)
+	t.Setenv(EnvManual, "")
+	t.Setenv(EnvAgentName, "true")
+
+	if cfg, _ := LoadConfig(); cfg.TopicAgentName {
+		t.Errorf("%s=true put the agent's name in topics too", EnvAgentName)
+	}
+
+	t.Setenv(EnvTopicAgentName, "true")
+
+	if cfg, _ := LoadConfig(); !cfg.TopicAgentName {
+		t.Errorf("%s=true left the agent's name out of topics", EnvTopicAgentName)
 	}
 }
 

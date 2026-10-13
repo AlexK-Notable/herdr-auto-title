@@ -33,6 +33,7 @@ const (
 
 	EnvWorkspaces         = "HERDR_AUTO_TITLE_WORKSPACES"
 	EnvWorkspaceMaxLength = "HERDR_AUTO_TITLE_WORKSPACE_MAX_LENGTH"
+	EnvTopicAgentName     = "HERDR_AUTO_TITLE_TOPIC_AGENT_NAME"
 
 	EnvClaudeDirs = "HERDR_AUTO_TITLE_CLAUDE_DIRS"
 
@@ -112,6 +113,10 @@ type Config struct {
 	// `topic` token. Herdr draws it only where the user's sidebar rows ask for
 	// `$topic`, and the label is never touched.
 	ReportWorkspaces bool
+	// TopicAgentName puts the agent's name in front of a topic. It is apart
+	// from ShowAgentName because the topic sits under its workspace, where
+	// the name mostly repeats what every row says.
+	TopicAgentName bool
 	// WorkspaceMaxLength bounds a topic, in columns. Zero, the default, leaves
 	// the fitting to Herdr, which knows how wide the sidebar is.
 	WorkspaceMaxLength int
@@ -200,6 +205,7 @@ func LoadConfig() (Config, []string) {
 	cfg.PreferAgentPane = fromEnv(&warnings, EnvPreferAgent, cfg.PreferAgentPane, boolean)
 	cfg.ShowPaneID = fromEnv(&warnings, EnvPaneID, cfg.ShowPaneID, boolean)
 	cfg.ReportWorkspaces = fromEnv(&warnings, EnvWorkspaces, cfg.ReportWorkspaces, boolean)
+	cfg.TopicAgentName = fromEnv(&warnings, EnvTopicAgentName, cfg.TopicAgentName, boolean)
 	cfg.WorkspaceMaxLength = fromEnv(
 		&warnings,
 		EnvWorkspaceMaxLength,

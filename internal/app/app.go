@@ -145,7 +145,7 @@ func topicsFor(cfg Config) *resolver.Topics {
 
 	return resolver.NewTopics(resolver.Options{
 		BranchMax:     cfg.BranchMax,
-		HideAgentName: !cfg.ShowAgentName,
+		HideAgentName: !cfg.TopicAgentName,
 		Home:          cfg.Home,
 	}, cfg.WorkspaceMaxLength)
 }

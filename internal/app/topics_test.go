@@ -19,7 +19,7 @@ import (
 func topicConfig() Config {
 	cfg := testConfig()
 	cfg.ReportWorkspaces = true
-	cfg.ShowAgentName = true
+	cfg.TopicAgentName = true
 
 	return cfg
 }
@@ -402,11 +402,14 @@ func TestATopicIsBoundOnlyWhenAWidthIsSet(t *testing.T) {
 	}
 }
 
-func TestTheTopicObeysTheAgentNameSetting(t *testing.T) {
+// The topic has its own setting: a tab title that starts with the agent's
+// name does not make the topic under the workspace start with it too.
+func TestTheTopicObeysItsOwnAgentNameSetting(t *testing.T) {
 	t.Parallel()
 
 	cfg := topicConfig()
-	cfg.ShowAgentName = false
+	cfg.ShowAgentName = true
+	cfg.TopicAgentName = false
 
 	h := oneTabWorkspace(t, cfg, "dashboard", herdr.PaneInfo{Agent: "claude", Title: "Fix"})
 	h.poll()
